@@ -14,6 +14,18 @@ _scan_lock = asyncio.Lock()
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
+MAX_LOG_ENTRIES = 200
+
+# スキャン進捗 (admin.py から参照)
+scan_progress: dict = {
+    "current_creator": None,
+    "current_file": None,
+    "total_creators": 0,
+    "done_creators": 0,
+    "new_files": [],   # [{creator, file, type}]
+    "skipped": 0,
+}
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -38,6 +50,14 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
     # creators_map[name] = {"video_folders": [...], "photo_folders": [...]}
     creators_map: dict[str, dict] = {}
 
+    # 進捗リセット
+    scan_progress["current_creator"] = None
+    scan_progress["current_file"] = None
+    scan_progress["total_creators"] = 0
+    scan_progress["done_creators"] = 0
+    scan_progress["new_files"] = []
+    scan_progress["skipped"] = 0
+
     for video_root in video_roots:
         if video_root.exists():
             for creator_dir in sorted(video_root.iterdir()):
@@ -57,7 +77,10 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
     scanned_creators = 0
     scanned_media = 0
 
+    scan_progress["total_creators"] = len(creators_map)
+
     for name, folders in creators_map.items():
+        scan_progress["current_creator"] = name
         result = await db.execute(select(Creator).where(Creator.name == name))
         creator = result.scalar_one_or_none()
         if creator is None:
@@ -79,8 +102,10 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
         for vf in video_folders:
             for f in Path(vf).iterdir():
                 if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS:
+                    scan_progress["current_file"] = f.name
                     if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
                         video_count += 1
+                        scan_progress["skipped"] += 1
                         continue
                     item = await _upsert_media(db, creator, f, "video", "mp4")
                     if item:
@@ -89,12 +114,15 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
                         mtime = datetime.fromtimestamp(f.stat().st_mtime)
                         if last_added is None or mtime > last_added:
                             last_added = mtime
+                        _append_log(name, f.name, "video")
 
         for pf in photo_folders:
             for f in Path(pf).iterdir():
                 if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
+                    scan_progress["current_file"] = f.name
                     if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
                         photo_count += 1
+                        scan_progress["skipped"] += 1
                         continue
                     item = await _upsert_media(db, creator, f, "image", "photo")
                     if item:
@@ -103,6 +131,7 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
                         mtime = datetime.fromtimestamp(f.stat().st_mtime)
                         if last_added is None or mtime > last_added:
                             last_added = mtime
+                        _append_log(name, f.name, "image")
 
         creator.video_count = video_count
         creator.photo_count = photo_count
@@ -111,6 +140,8 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
         creator.updated_at = _utcnow()
 
         scanned_creators += 1
+        scan_progress["done_creators"] = scanned_creators
+        scan_progress["current_file"] = None
 
     # mark missing files
     result = await db.execute(select(MediaItem).where(MediaItem.missing == False))  # noqa: E712
@@ -121,7 +152,16 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
     await _save_setting(db, "last_scan_at", _utcnow().isoformat())
     await db.commit()
 
+    scan_progress["current_creator"] = None
+    scan_progress["current_file"] = None
+
     return {"creators": scanned_creators, "media": scanned_media}
+
+
+def _append_log(creator: str, filename: str, media_type: str) -> None:
+    scan_progress["new_files"].append({"creator": creator, "file": filename, "type": media_type})
+    if len(scan_progress["new_files"]) > MAX_LOG_ENTRIES:
+        scan_progress["new_files"] = scan_progress["new_files"][-MAX_LOG_ENTRIES:]
 
 
 async def _upsert_media(
