@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: creator-shelf-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${VIDEO_ROOT_HOST}:/media/mp4:ro
+      - ${PHOTO_ROOT_HOST}:/media/photo:ro
+      - ./data:/app/data
+      - ./cache:/app/cache
+    environment:
+      VIDEO_ROOT: /media/mp4
+      PHOTO_ROOT: /media/photo
+      DATABASE_PATH: /app/data/app.db
+      THUMBNAIL_DIR: /app/cache/thumbnails
+      SCAN_INTERVAL_MINUTES: 60
+      TZ: Asia/Tokyo
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_INTERNAL_URL: http://backend:8080
+    container_name: creator-shelf-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://backend:8080
+      TZ: Asia/Tokyo
+    depends_on:
+      - backend
+    restart: unless-stopped
