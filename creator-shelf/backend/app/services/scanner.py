@@ -1,3 +1,4 @@
+import asyncio
 import os
 import mimetypes
 from datetime import datetime, timezone
@@ -8,6 +9,8 @@ from app.models import Creator, MediaItem, AppSetting
 from app.config import settings
 from app.services.thumbnail import get_video_duration
 
+_scan_lock = asyncio.Lock()
+
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -17,6 +20,13 @@ def _utcnow() -> datetime:
 
 
 async def scan_nas(db: AsyncSession) -> dict:
+    if _scan_lock.locked():
+        return {"skipped": True, "reason": "scan already running"}
+    async with _scan_lock:
+        return await _scan_nas_impl(db)
+
+
+async def _scan_nas_impl(db: AsyncSession) -> dict:
     video_root = Path(settings.VIDEO_ROOT)
     photo_root = Path(settings.PHOTO_ROOT)
 
