@@ -20,6 +20,11 @@ async def scan_nas(db: AsyncSession) -> dict:
     video_root = Path(settings.VIDEO_ROOT)
     photo_root = Path(settings.PHOTO_ROOT)
 
+    # 差分スキャン: 前回スキャン時刻を取得
+    result = await db.execute(select(AppSetting).where(AppSetting.key == "last_scan_at"))
+    setting = result.scalar_one_or_none()
+    last_scan: datetime | None = datetime.fromisoformat(setting.value) if setting else None
+
     creators_map: dict[str, dict] = {}
 
     if video_root.exists():
@@ -55,6 +60,9 @@ async def scan_nas(db: AsyncSession) -> dict:
         if creator.video_folder_path:
             for f in Path(creator.video_folder_path).iterdir():
                 if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS:
+                    if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
+                        video_count += 1
+                        continue
                     item = await _upsert_media(db, creator, f, "video", "mp4")
                     if item:
                         video_count += 1
@@ -66,6 +74,9 @@ async def scan_nas(db: AsyncSession) -> dict:
         if creator.photo_folder_path:
             for f in Path(creator.photo_folder_path).iterdir():
                 if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
+                    if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
+                        photo_count += 1
+                        continue
                     item = await _upsert_media(db, creator, f, "image", "photo")
                     if item:
                         photo_count += 1
@@ -116,14 +127,14 @@ async def _upsert_media(
             file_modified_at=mtime,
         )
         if media_type == "video":
-            item.duration = get_video_duration(str(f))
+            item.duration = await get_video_duration(str(f))
         db.add(item)
     else:
         item.missing = False
         item.file_modified_at = mtime
         item.size = stat.st_size
         if media_type == "video" and item.duration is None:
-            item.duration = get_video_duration(str(f))
+            item.duration = await get_video_duration(str(f))
     return item
 
 

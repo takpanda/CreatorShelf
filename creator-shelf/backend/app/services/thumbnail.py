@@ -1,3 +1,4 @@
+import asyncio
 import os
 import subprocess
 from pathlib import Path
@@ -52,20 +53,18 @@ def generate_video_thumbnail(media_id: int, source_path: str) -> str | None:
         return None
 
 
-def get_video_duration(source_path: str) -> float | None:
+async def get_video_duration(source_path: str) -> float | None:
     try:
-        result = subprocess.run(
-            [
-                "ffprobe", "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                source_path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            source_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-        val = result.stdout.strip()
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        val = stdout.decode().strip()
         return float(val) if val else None
     except Exception:
         return None

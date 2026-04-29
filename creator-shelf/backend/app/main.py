@@ -8,11 +8,15 @@ from app.services.scanner import scan_nas
 from app.database import AsyncSessionLocal
 
 
+async def _background_scan():
+    async with AsyncSessionLocal() as db:
+        await scan_nas(db)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    async with AsyncSessionLocal() as db:
-        await scan_nas(db)
+    asyncio.create_task(_background_scan())
     yield
 
 
