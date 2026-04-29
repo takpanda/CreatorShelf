@@ -88,6 +88,9 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
             db.add(creator)
             await db.flush()
 
+        result = await db.execute(select(MediaItem).where(MediaItem.creator_id == creator.id))
+        indexed_media_by_path = {item.file_path: item for item in result.scalars().all()}
+
         video_folders = folders["video_folders"]
         photo_folders = folders["photo_folders"]
 
@@ -103,12 +106,19 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
             for f in Path(vf).iterdir():
                 if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS:
                     scan_progress["current_file"] = f.name
-                    if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
+                    existing_item = indexed_media_by_path.get(str(f))
+                    if (
+                        existing_item is not None
+                        and existing_item.missing is False
+                        and last_scan
+                        and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan
+                    ):
                         video_count += 1
                         scan_progress["skipped"] += 1
                         continue
-                    item = await _upsert_media(db, creator, f, "video", "mp4")
+                    item = await _upsert_media(db, creator, f, "video", "mp4", existing_item)
                     if item:
+                        indexed_media_by_path[str(f)] = item
                         video_count += 1
                         scanned_media += 1
                         mtime = datetime.fromtimestamp(f.stat().st_mtime)
@@ -120,12 +130,19 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
             for f in Path(pf).iterdir():
                 if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
                     scan_progress["current_file"] = f.name
-                    if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
+                    existing_item = indexed_media_by_path.get(str(f))
+                    if (
+                        existing_item is not None
+                        and existing_item.missing is False
+                        and last_scan
+                        and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan
+                    ):
                         photo_count += 1
                         scan_progress["skipped"] += 1
                         continue
-                    item = await _upsert_media(db, creator, f, "image", "photo")
+                    item = await _upsert_media(db, creator, f, "image", "photo", existing_item)
                     if item:
+                        indexed_media_by_path[str(f)] = item
                         photo_count += 1
                         scanned_media += 1
                         mtime = datetime.fromtimestamp(f.stat().st_mtime)
@@ -165,10 +182,16 @@ def _append_log(creator: str, filename: str, media_type: str) -> None:
 
 
 async def _upsert_media(
-    db: AsyncSession, creator: Creator, f: Path, media_type: str, source_root: str
+    db: AsyncSession,
+    creator: Creator,
+    f: Path,
+    media_type: str,
+    source_root: str,
+    item: MediaItem | None = None,
 ) -> MediaItem | None:
-    result = await db.execute(select(MediaItem).where(MediaItem.file_path == str(f)))
-    item = result.scalar_one_or_none()
+    if item is None:
+        result = await db.execute(select(MediaItem).where(MediaItem.file_path == str(f)))
+        item = result.scalar_one_or_none()
     stat = f.stat()
     mtime = datetime.fromtimestamp(stat.st_mtime)
     mime = mimetypes.guess_type(f.name)[0]
