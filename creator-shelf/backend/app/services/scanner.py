@@ -27,27 +27,32 @@ async def scan_nas(db: AsyncSession) -> dict:
 
 
 async def _scan_nas_impl(db: AsyncSession) -> dict:
-    video_root = Path(settings.VIDEO_ROOT)
-    photo_root = Path(settings.PHOTO_ROOT)
+    video_roots = [Path(p) for p in settings.video_roots_list]
+    photo_roots = [Path(p) for p in settings.photo_roots_list]
 
     # 差分スキャン: 前回スキャン時刻を取得
     result = await db.execute(select(AppSetting).where(AppSetting.key == "last_scan_at"))
     setting = result.scalar_one_or_none()
     last_scan: datetime | None = datetime.fromisoformat(setting.value) if setting else None
 
+    # creators_map[name] = {"video_folders": [...], "photo_folders": [...]}
     creators_map: dict[str, dict] = {}
 
-    if video_root.exists():
-        for creator_dir in sorted(video_root.iterdir()):
-            if creator_dir.is_dir():
-                name = creator_dir.name
-                creators_map.setdefault(name, {})["video_folder"] = str(creator_dir)
+    for video_root in video_roots:
+        if video_root.exists():
+            for creator_dir in sorted(video_root.iterdir()):
+                if creator_dir.is_dir():
+                    name = creator_dir.name
+                    entry = creators_map.setdefault(name, {"video_folders": [], "photo_folders": []})
+                    entry["video_folders"].append(str(creator_dir))
 
-    if photo_root.exists():
-        for creator_dir in sorted(photo_root.iterdir()):
-            if creator_dir.is_dir():
-                name = creator_dir.name
-                creators_map.setdefault(name, {})["photo_folder"] = str(creator_dir)
+    for photo_root in photo_roots:
+        if photo_root.exists():
+            for creator_dir in sorted(photo_root.iterdir()):
+                if creator_dir.is_dir():
+                    name = creator_dir.name
+                    entry = creators_map.setdefault(name, {"video_folders": [], "photo_folders": []})
+                    entry["photo_folders"].append(str(creator_dir))
 
     scanned_creators = 0
     scanned_media = 0
@@ -60,15 +65,19 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
             db.add(creator)
             await db.flush()
 
-        creator.video_folder_path = folders.get("video_folder")
-        creator.photo_folder_path = folders.get("photo_folder")
+        video_folders = folders["video_folders"]
+        photo_folders = folders["photo_folders"]
+
+        # カンマ区切りで複数パスを保存
+        creator.video_folder_path = ",".join(video_folders) if video_folders else None
+        creator.photo_folder_path = ",".join(photo_folders) if photo_folders else None
 
         video_count = 0
         photo_count = 0
         last_added: datetime | None = None
 
-        if creator.video_folder_path:
-            for f in Path(creator.video_folder_path).iterdir():
+        for vf in video_folders:
+            for f in Path(vf).iterdir():
                 if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS:
                     if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
                         video_count += 1
@@ -81,8 +90,8 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
                         if last_added is None or mtime > last_added:
                             last_added = mtime
 
-        if creator.photo_folder_path:
-            for f in Path(creator.photo_folder_path).iterdir():
+        for pf in photo_folders:
+            for f in Path(pf).iterdir():
                 if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
                     if last_scan and datetime.fromtimestamp(f.stat().st_mtime) <= last_scan:
                         photo_count += 1
