@@ -1,8 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { fetchCreators, toggleFavoriteCreator, Creator } from "@/lib/api";
 import { Heart, Film, Image as ImageIcon, Search, ArrowLeft } from "lucide-react";
+
+const PAGE_SIZE = 30;
 
 export default function CreatorsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -10,22 +12,53 @@ export default function CreatorsPage() {
   const [filter, setFilter] = useState<"all" | "video" | "photo" | "both">("all");
   const [sort, setSort] = useState("name");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const buildParams = useCallback(() => {
     const params: Record<string, string> = { sort };
     if (q) params.q = q;
     if (filter === "video") params.has_video = "true";
     if (filter === "photo") params.has_photo = "true";
     if (filter === "both") { params.has_video = "true"; params.has_photo = "true"; }
-    try {
-      setCreators(await fetchCreators(params));
-    } finally {
-      setLoading(false);
-    }
-  };
+    return params;
+  }, [q, filter, sort]);
 
-  useEffect(() => { load(); }, [q, filter, sort]);
+  // フィルタ/ソート変更時はリセットして最初から読み込み
+  useEffect(() => {
+    offsetRef.current = 0;
+    setCreators([]);
+    setHasMore(true);
+    setLoading(true);
+    fetchCreators(buildParams(), PAGE_SIZE, 0).then((data) => {
+      setCreators(data);
+      offsetRef.current = data.length;
+      setHasMore(data.length === PAGE_SIZE);
+    }).finally(() => setLoading(false));
+  }, [q, filter, sort]);
+
+  // Intersection Observer で末尾検知 → 追加読み込み
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting) return;
+        if (loadingMore || !hasMore) return;
+        setLoadingMore(true);
+        fetchCreators(buildParams(), PAGE_SIZE, offsetRef.current).then((data) => {
+          setCreators((prev) => [...prev, ...data]);
+          offsetRef.current += data.length;
+          setHasMore(data.length === PAGE_SIZE);
+        }).finally(() => setLoadingMore(false));
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, buildParams]);
 
   const handleFavorite = async (e: React.MouseEvent, c: Creator) => {
     e.preventDefault();
@@ -76,32 +109,39 @@ export default function CreatorsPage() {
       ) : creators.length === 0 ? (
         <p className="text-gray-400">投稿者が見つかりません</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {creators.map((c) => (
-            <Link
-              key={c.id}
-              href={`/creators/${c.id}`}
-              className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative group"
-            >
-              <button
-                onClick={(e) => handleFavorite(e, c)}
-                className="absolute top-2 right-2 text-gray-500 hover:text-red-400 transition"
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {creators.map((c) => (
+              <Link
+                key={c.id}
+                href={`/creators/${c.id}`}
+                className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative group"
               >
-                <Heart size={16} fill={c.is_favorite ? "currentColor" : "none"} className={c.is_favorite ? "text-red-400" : ""} />
-              </button>
-              <div className="font-medium truncate pr-5">{c.name}</div>
-              <div className="text-xs text-gray-400 mt-2 flex gap-3">
-                <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
-                <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
-              </div>
-              {c.last_added_at && (
-                <div className="text-xs text-gray-500 mt-1">
-                  {new Date(c.last_added_at).toLocaleDateString("ja-JP")}
+                <button
+                  onClick={(e) => handleFavorite(e, c)}
+                  className="absolute top-2 right-2 text-gray-500 hover:text-red-400 transition"
+                >
+                  <Heart size={16} fill={c.is_favorite ? "currentColor" : "none"} className={c.is_favorite ? "text-red-400" : ""} />
+                </button>
+                <div className="font-medium truncate pr-5">{c.name}</div>
+                <div className="text-xs text-gray-400 mt-2 flex gap-3">
+                  <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
+                  <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
                 </div>
-              )}
-            </Link>
-          ))}
-        </div>
+                {c.last_added_at && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {new Date(c.last_added_at).toLocaleDateString("ja-JP")}
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+          {/* センチネル：ここが見えたら次ページを読み込む */}
+          <div ref={sentinelRef} className="h-10 mt-4 flex items-center justify-center">
+            {loadingMore && <span className="text-gray-400 text-sm">読み込み中...</span>}
+            {!hasMore && <span className="text-gray-600 text-sm">すべて表示しました</span>}
+          </div>
+        </>
       )}
     </div>
   );

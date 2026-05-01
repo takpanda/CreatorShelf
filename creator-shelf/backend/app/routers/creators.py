@@ -16,6 +16,8 @@ async def list_creators(
     has_video: bool | None = Query(None),
     has_photo: bool | None = Query(None),
     sort: str = Query("name"),
+    limit: int = Query(30, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Creator)
@@ -35,6 +37,7 @@ async def list_creators(
     elif sort == "favorite":
         stmt = stmt.order_by(Creator.favorite_at.desc().nullslast())
 
+    stmt = stmt.limit(limit).offset(offset)
     result = await db.execute(stmt)
     return result.scalars().all()
 

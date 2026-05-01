@@ -36,9 +36,13 @@ export interface SlideshowItem {
   favorite: boolean;
 }
 
-export async function fetchCreators(params: Record<string, string> = {}): Promise<Creator[]> {
-  const q = new URLSearchParams(params).toString();
-  const res = await fetch(`/api/creators${q ? "?" + q : ""}`, { cache: "no-store" });
+export async function fetchCreators(
+  params: Record<string, string> = {},
+  limit = 30,
+  offset = 0
+): Promise<Creator[]> {
+  const p = new URLSearchParams({ ...params, limit: String(limit), offset: String(offset) });
+  const res = await fetch(`/api/creators?${p.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch creators");
   return res.json();
 }
