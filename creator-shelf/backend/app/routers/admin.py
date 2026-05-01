@@ -19,6 +19,17 @@ _scan_status: dict = {
     "error": None,
 }
 
+_thumb_status: dict = {
+    "running": False,
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+    "total": 0,
+    "done": 0,
+    "current_file": None,
+    "generated": 0,
+}
+
 
 async def _run_scan_background() -> None:
     _scan_status["running"] = True
@@ -66,21 +77,63 @@ async def scan_status(db: AsyncSession = Depends(get_db)):
     }
 
 
+async def _run_thumb_regen_background() -> None:
+    _thumb_status["running"] = True
+    _thumb_status["started_at"] = datetime.now(timezone.utc).isoformat()
+    _thumb_status["finished_at"] = None
+    _thumb_status["error"] = None
+    _thumb_status["done"] = 0
+    _thumb_status["generated"] = 0
+    _thumb_status["current_file"] = None
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(MediaItem).where(MediaItem.missing == False))  # noqa: E712
+            items = result.scalars().all()
+            _thumb_status["total"] = len(items)
+            generated = 0
+            for item in items:
+                _thumb_status["current_file"] = Path(item.file_path).name
+                if item.media_type == "image":
+                    p = generate_image_thumbnail(item.id, item.file_path)
+                else:
+                    p = generate_video_thumbnail(item.id, item.file_path)
+                if p:
+                    item.thumbnail_path = p
+                    generated += 1
+                _thumb_status["done"] += 1
+                _thumb_status["generated"] = generated
+                # 他のコルーチンに制御を渡してポーリングが通るようにする
+                await asyncio.sleep(0)
+            await db.commit()
+        _thumb_status["finished_at"] = datetime.now(timezone.utc).isoformat()
+    except Exception as exc:
+        _thumb_status["error"] = str(exc)
+        _thumb_status["finished_at"] = datetime.now(timezone.utc).isoformat()
+    finally:
+        _thumb_status["running"] = False
+        _thumb_status["current_file"] = None
+
+
 @router.post("/thumbnails/regenerate")
-async def regenerate_thumbnails(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(MediaItem).where(MediaItem.missing == False))  # noqa: E712
-    items = result.scalars().all()
-    generated = 0
-    for item in items:
-        if item.media_type == "image":
-            p = generate_image_thumbnail(item.id, item.file_path)
-        else:
-            p = generate_video_thumbnail(item.id, item.file_path)
-        if p:
-            item.thumbnail_path = p
-            generated += 1
-    await db.commit()
-    return {"generated": generated}
+async def regenerate_thumbnails():
+    if _thumb_status["running"]:
+        return {"status": "already_running"}
+    asyncio.create_task(_run_thumb_regen_background())
+    return {"status": "started"}
+
+
+@router.get("/thumbnails/status")
+async def thumbnail_status():
+    return {
+        "running": _thumb_status["running"],
+        "started_at": _thumb_status["started_at"],
+        "finished_at": _thumb_status["finished_at"],
+        "error": _thumb_status["error"],
+        "total": _thumb_status["total"],
+        "done": _thumb_status["done"],
+        "current_file": _thumb_status["current_file"],
+        "generated": _thumb_status["generated"],
+    }
 
 
 @router.get("/integrity")

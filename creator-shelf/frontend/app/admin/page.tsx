@@ -26,6 +26,17 @@ interface ScanStatus {
   } | null;
 }
 
+interface ThumbStatus {
+  running: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  total: number;
+  done: number;
+  current_file: string | null;
+  generated: number;
+}
+
 function formatJST(iso: string | null): string {
   if (!iso) return "—";
   // タイムゾーン指定がない場合のみ UTC として扱う
@@ -38,7 +49,9 @@ function formatJST(iso: string | null): string {
 export default function AdminPage() {
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [integrityResult, setIntegrityResult] = useState<any>(null);
+  const [thumbStatus, setThumbStatus] = useState<ThumbStatus | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const thumbPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // ポーリングのギャップでクリエイター名が消えないよう最後の値を保持
   const lastCreatorRef = useRef<string | null>(null);
   const lastFileRef = useRef<string | null>(null);
@@ -53,10 +66,24 @@ export default function AdminPage() {
     return data;
   }, []);
 
+  const fetchThumbStatus = useCallback(async () => {
+    const res = await fetch("/api/admin/thumbnails/status");
+    const data: ThumbStatus = await res.json();
+    setThumbStatus(data);
+    return data;
+  }, []);
+
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
+    }
+  }, []);
+
+  const stopThumbPolling = useCallback(() => {
+    if (thumbPollRef.current) {
+      clearInterval(thumbPollRef.current);
+      thumbPollRef.current = null;
     }
   }, []);
 
@@ -68,12 +95,23 @@ export default function AdminPage() {
     }, 2000);
   }, [fetchStatus, stopPolling]);
 
+  const startThumbPolling = useCallback(() => {
+    stopThumbPolling();
+    thumbPollRef.current = setInterval(async () => {
+      const data = await fetchThumbStatus();
+      if (!data.running) stopThumbPolling();
+    }, 1000);
+  }, [fetchThumbStatus, stopThumbPolling]);
+
   useEffect(() => {
     fetchStatus().then((data) => {
       if (data.running) startPolling();
     });
-    return () => stopPolling();
-  }, [fetchStatus, startPolling, stopPolling]);
+    fetchThumbStatus().then((data) => {
+      if (data.running) startThumbPolling();
+    });
+    return () => { stopPolling(); stopThumbPolling(); };
+  }, [fetchStatus, fetchThumbStatus, startPolling, startThumbPolling, stopPolling, stopThumbPolling]);
 
   const runScan = async () => {
     await fetch("/api/admin/scan", { method: "POST" });
@@ -87,12 +125,13 @@ export default function AdminPage() {
   };
 
   const regenThumbs = async () => {
-    const res = await fetch("/api/admin/thumbnails/regenerate", { method: "POST" });
-    const d = await res.json();
-    alert(`サムネイル生成完了: ${d.generated}件`);
+    await fetch("/api/admin/thumbnails/regenerate", { method: "POST" });
+    await fetchThumbStatus();
+    startThumbPolling();
   };
 
   const isRunning = status?.running ?? false;
+  const isThumbRunning = thumbStatus?.running ?? false;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -232,11 +271,76 @@ export default function AdminPage() {
 
       <section className="bg-gray-800 rounded-xl p-6 mb-4">
         <h2 className="text-lg font-semibold mb-3">サムネイル再生成</h2>
+
+        {/* サムネイル進捗パネル */}
+        {thumbStatus && (thumbStatus.running || thumbStatus.finished_at || thumbStatus.error) && (
+          <div className="bg-gray-900 rounded-lg p-4 mb-4 space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              {isThumbRunning ? (
+                <>
+                  <Loader2 size={16} className="animate-spin text-yellow-400" />
+                  <span className="text-yellow-400 font-medium">生成中...</span>
+                </>
+              ) : thumbStatus.error ? (
+                <>
+                  <XCircle size={16} className="text-red-400" />
+                  <span className="text-red-400 font-medium">エラー</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={16} className="text-green-400" />
+                  <span className="text-green-400 font-medium">完了</span>
+                </>
+              )}
+            </div>
+
+            {/* プログレスバー */}
+            {thumbStatus.total > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.round((thumbStatus.done / thumbStatus.total) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-gray-400 text-xs whitespace-nowrap">
+                    {thumbStatus.done} / {thumbStatus.total}
+                  </span>
+                </div>
+                <div className="text-gray-500 text-xs text-right">
+                  {Math.round((thumbStatus.done / thumbStatus.total) * 100)}%
+                </div>
+              </div>
+            )}
+
+            {thumbStatus.current_file && (
+              <div className="text-gray-400 text-xs truncate">
+                処理中: <span className="text-gray-200">{thumbStatus.current_file}</span>
+              </div>
+            )}
+
+            {!isThumbRunning && thumbStatus.generated > 0 && (
+              <div className="text-gray-400 text-xs">
+                生成済み: <span className="text-white font-medium">{thumbStatus.generated}</span> 件
+              </div>
+            )}
+
+            {thumbStatus.error && (
+              <div className="text-red-300 bg-red-900/30 rounded p-2 mt-1">
+                {thumbStatus.error}
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           onClick={regenThumbs}
-          className="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-2 rounded-lg transition"
+          disabled={isThumbRunning}
+          className="bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg transition flex items-center gap-2"
         >
-          再生成
+          {isThumbRunning && <Loader2 size={14} className="animate-spin" />}
+          {isThumbRunning ? "生成中..." : "再生成"}
         </button>
       </section>
 

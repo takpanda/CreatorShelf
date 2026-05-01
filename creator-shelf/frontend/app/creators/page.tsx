@@ -54,7 +54,7 @@ export default function CreatorsPage() {
           setHasMore(data.length === PAGE_SIZE);
         }).finally(() => setLoadingMore(false));
       },
-      { rootMargin: "200px" }
+      { rootMargin: "300px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -109,40 +109,40 @@ export default function CreatorsPage() {
       ) : creators.length === 0 ? (
         <p className="text-gray-400">投稿者が見つかりません</p>
       ) : (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {creators.map((c) => (
-              <Link
-                key={c.id}
-                href={`/creators/${c.id}`}
-                className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative group"
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {creators.map((c) => (
+            <Link
+              key={c.id}
+              href={`/creators/${c.id}`}
+              className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative group"
+            >
+              <button
+                onClick={(e) => handleFavorite(e, c)}
+                className="absolute top-2 right-2 text-gray-500 hover:text-red-400 transition"
               >
-                <button
-                  onClick={(e) => handleFavorite(e, c)}
-                  className="absolute top-2 right-2 text-gray-500 hover:text-red-400 transition"
-                >
-                  <Heart size={16} fill={c.is_favorite ? "currentColor" : "none"} className={c.is_favorite ? "text-red-400" : ""} />
-                </button>
-                <div className="font-medium truncate pr-5">{c.name}</div>
-                <div className="text-xs text-gray-400 mt-2 flex gap-3">
-                  <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
-                  <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
+                <Heart size={16} fill={c.is_favorite ? "currentColor" : "none"} className={c.is_favorite ? "text-red-400" : ""} />
+              </button>
+              <div className="font-medium truncate pr-5">{c.name}</div>
+              <div className="text-xs text-gray-400 mt-2 flex gap-3">
+                <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
+                <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
+              </div>
+              {c.last_added_at && (
+                <div className="text-xs text-gray-500 mt-1">
+                  {new Date(c.last_added_at).toLocaleDateString("ja-JP")}
                 </div>
-                {c.last_added_at && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    {new Date(c.last_added_at).toLocaleDateString("ja-JP")}
-                  </div>
-                )}
-              </Link>
-            ))}
-          </div>
-          {/* センチネル：ここが見えたら次ページを読み込む */}
-          <div ref={sentinelRef} className="h-10 mt-4 flex items-center justify-center">
-            {loadingMore && <span className="text-gray-400 text-sm">読み込み中...</span>}
-            {!hasMore && <span className="text-gray-600 text-sm">すべて表示しました</span>}
-          </div>
-        </>
+              )}
+            </Link>
+          ))}
+        </div>
       )}
+      {/* センチネル：常にDOMに存在させることでObserverが確実に監視できる */}
+      <div ref={sentinelRef} className="h-10 mt-4 flex items-center justify-center">
+        {loadingMore && <span className="text-gray-400 text-sm">読み込み中...</span>}
+        {!loading && !loadingMore && !hasMore && creators.length > 0 && (
+          <span className="text-gray-600 text-sm">すべて表示しました</span>
+        )}
+      </div>
     </div>
   );
 }
