@@ -25,6 +25,7 @@ export default function SlideshowPage({ params }: { params: { id: string } }) {
   const [interval, setIntervalSec] = useState(5);
   const [fullscreen, setFullscreen] = useState(false);
   const [favOnly, setFavOnly] = useState(false);
+  const [imgLoading, setImgLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(
@@ -98,7 +99,14 @@ export default function SlideshowPage({ params }: { params: { id: string } }) {
             src={current.url}
             alt=""
             className={`${fullscreen ? "max-h-full max-w-full" : "w-full max-h-[65vh]"} object-contain`}
+            onLoadStart={() => setImgLoading(true)}
+            onLoad={() => setImgLoading(false)}
           />
+        )}
+        {imgLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10 pointer-events-none">
+            <div className="w-10 h-10 border-4 border-gray-600 border-t-white rounded-full animate-spin" />
+          </div>
         )}
         {items.length === 0 && (
           <div className="flex items-center justify-center h-64 text-gray-500">画像がありません</div>

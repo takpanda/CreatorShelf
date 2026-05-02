@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchMedia, toggleFavoriteMedia, markSeen, MediaItem } from "@/lib/api";
+import { useSwipe } from "@/lib/useSwipe";
 import { ArrowLeft, Heart, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 
 export default function PhotoViewerPage({ params }: { params: { id: string } }) {
@@ -11,6 +12,7 @@ export default function PhotoViewerPage({ params }: { params: { id: string } }) 
   const creatorId = Number(searchParams.get("creator"));
   const [playlist, setPlaylist] = useState<MediaItem[]>([]);
   const [current, setCurrent] = useState<MediaItem | null>(null);
+  const [imgLoading, setImgLoading] = useState(false);
 
   useEffect(() => {
     if (!creatorId) return;
@@ -35,8 +37,9 @@ export default function PhotoViewerPage({ params }: { params: { id: string } }) 
   });
 
   const idx = playlist.findIndex((m) => m.id === current?.id);
-  const goPrev = () => { if (idx > 0) setCurrent(playlist[idx - 1]); };
-  const goNext = () => { if (idx < playlist.length - 1) setCurrent(playlist[idx + 1]); };
+  const goPrev = () => { setImgLoading(true); if (idx > 0) setCurrent(playlist[idx - 1]); };
+  const goNext = () => { setImgLoading(true); if (idx < playlist.length - 1) setCurrent(playlist[idx + 1]); };
+  const swipeHandlers = useSwipe(goNext, goPrev);
 
   const handleFav = async () => {
     if (!current) return;
@@ -63,13 +66,20 @@ export default function PhotoViewerPage({ params }: { params: { id: string } }) 
       </div>
 
       {current && (
-        <div className="relative">
+        <div className="relative" {...swipeHandlers}>
+          {imgLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl z-10">
+              <div className="w-10 h-10 border-4 border-gray-600 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             key={current.id}
             src={`/api/photos/${current.id}/image`}
             alt={current.file_name}
             className="w-full rounded-xl object-contain max-h-[70vh] bg-black"
+            onLoadStart={() => setImgLoading(true)}
+            onLoad={() => setImgLoading(false)}
           />
           <button
             onClick={goPrev}

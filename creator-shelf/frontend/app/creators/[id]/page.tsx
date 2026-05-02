@@ -128,19 +128,23 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
         )}
       </div>
 
-      <div className="flex gap-2 mb-4 border-b border-gray-700 pb-2">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-1.5 rounded-lg text-sm transition ${tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
-          >
-            {t.label}
-          </button>
-        ))}
-        <div className="ml-auto">
+      <div className="flex items-center gap-2 mb-4 border-b border-gray-700 pb-2">
+        <div className="flex gap-1.5 overflow-x-auto flex-1 min-w-0 scrollbar-hide">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex-shrink-0">
           <select
-            className="bg-gray-800 text-white px-3 py-1.5 rounded-lg text-sm"
+            className="bg-gray-800 text-white px-2 py-1.5 rounded-lg text-sm"
             value={sort}
             onChange={(e) => setSort(e.target.value)}
           >

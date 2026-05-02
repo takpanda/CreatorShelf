@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchMedia, savePlayback, toggleFavoriteMedia, markSeen, MediaItem } from "@/lib/api";
+import { useSwipe } from "@/lib/useSwipe";
 import { ArrowLeft, Heart, ChevronLeft, ChevronRight, Repeat, Repeat1 } from "lucide-react";
 
 type RepeatMode = "none" | "one" | "all";
@@ -14,6 +15,7 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
   const [playlist, setPlaylist] = useState<MediaItem[]>([]);
   const [current, setCurrent] = useState<MediaItem | null>(null);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("none");
+  const [videoLoading, setVideoLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -51,6 +53,10 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
   const idx = playlist.findIndex((m) => m.id === current?.id);
   const prev = idx > 0 ? playlist[idx - 1] : null;
   const next = idx < playlist.length - 1 ? playlist[idx + 1] : null;
+  const swipeHandlers = useSwipe(
+    () => { if (next) setCurrent(next); },
+    () => { if (prev) setCurrent(prev); }
+  );
 
   const cycleRepeat = () => {
     setRepeatMode((m) => (m === "none" ? "all" : m === "all" ? "one" : "none"));
@@ -91,15 +97,24 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
       </div>
 
       {current && (
-        <video
-          ref={videoRef}
-          key={current.id}
-          src={`/api/videos/${current.id}/stream`}
-          controls
-          loop={repeatMode === "one"}
-          className="w-full rounded-xl bg-black"
-          onEnded={handleEnded}
-        />
+        <div className="relative" {...swipeHandlers}>
+          {videoLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl z-10 pointer-events-none">
+              <div className="w-12 h-12 border-4 border-gray-600 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
+          <video
+            ref={videoRef}
+            key={current.id}
+            src={`/api/videos/${current.id}/stream`}
+            controls
+            loop={repeatMode === "one"}
+            className="w-full rounded-xl bg-black"
+            onLoadStart={() => setVideoLoading(true)}
+            onCanPlay={() => setVideoLoading(false)}
+            onEnded={handleEnded}
+          />
+        </div>
       )}
 
       {current && (current.video_title || current.video_description) && (
