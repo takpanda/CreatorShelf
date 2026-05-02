@@ -1,7 +1,9 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db, AsyncSessionLocal
@@ -53,6 +55,46 @@ async def trigger_scan():
         return {"status": "already_running"}
     asyncio.create_task(_run_scan_background())
     return {"status": "started"}
+
+
+@router.get("/scan/progress/stream")
+async def scan_progress_stream(request: Request):
+    """SSE endpoint: スキャン進捗をリアルタイムでストリーム送信する"""
+
+    async def event_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                data = {
+                    "running": _scan_status["running"],
+                    "started_at": _scan_status["started_at"],
+                    "finished_at": _scan_status["finished_at"],
+                    "error": _scan_status["error"],
+                    "last_result": _scan_status["last_result"],
+                    "progress": {
+                        "current_creator": scan_progress["current_creator"],
+                        "current_file": scan_progress["current_file"],
+                        "total_creators": scan_progress["total_creators"],
+                        "done_creators": scan_progress["done_creators"],
+                        "skipped": scan_progress["skipped"],
+                        "new_files": scan_progress["new_files"][-50:],
+                    },
+                }
+                yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                await asyncio.sleep(0.3)
+        except asyncio.CancelledError:
+            pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/scan/status")

@@ -39,7 +39,6 @@ interface ThumbStatus {
 
 function formatJST(iso: string | null): string {
   if (!iso) return "—";
-  // タイムゾーン指定がない場合のみ UTC として扱う
   const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(iso);
   const d = new Date(hasTimezone ? iso : iso + "Z");
   if (isNaN(d.getTime())) return iso;
@@ -52,7 +51,7 @@ export default function AdminPage() {
   const [thumbStatus, setThumbStatus] = useState<ThumbStatus | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const thumbPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // ポーリングのギャップでクリエイター名が消えないよう最後の値を保持
+  const esRef = useRef<EventSource | null>(null);
   const lastCreatorRef = useRef<string | null>(null);
   const lastFileRef = useRef<string | null>(null);
 
@@ -92,7 +91,7 @@ export default function AdminPage() {
     pollRef.current = setInterval(async () => {
       const data = await fetchStatus();
       if (!data.running) stopPolling();
-    }, 2000);
+    }, 800);
   }, [fetchStatus, stopPolling]);
 
   const startThumbPolling = useCallback(() => {
@@ -103,6 +102,14 @@ export default function AdminPage() {
     }, 1000);
   }, [fetchThumbStatus, stopThumbPolling]);
 
+  // SSEは直接バックエンドポートに接続（Next.jsプロキシはSSEをバッファリングするため使用しない）
+  const stopSSE = useCallback(() => {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus().then((data) => {
       if (data.running) startPolling();
@@ -110,8 +117,8 @@ export default function AdminPage() {
     fetchThumbStatus().then((data) => {
       if (data.running) startThumbPolling();
     });
-    return () => { stopPolling(); stopThumbPolling(); };
-  }, [fetchStatus, fetchThumbStatus, startPolling, startThumbPolling, stopPolling, stopThumbPolling]);
+    return () => { stopPolling(); stopThumbPolling(); stopSSE(); };
+  }, [fetchStatus, fetchThumbStatus, startPolling, startThumbPolling, stopPolling, stopThumbPolling, stopSSE]);
 
   const runScan = async () => {
     await fetch("/api/admin/scan", { method: "POST" });
@@ -141,7 +148,9 @@ export default function AdminPage() {
       </div>
 
       <section className="bg-gray-800 rounded-xl p-6 mb-4">
-        <h2 className="text-lg font-semibold mb-4">NASスキャン</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">NASスキャン</h2>
+        </div>
 
         {/* ステータスパネル */}
         <div className="bg-gray-900 rounded-lg p-4 mb-4 space-y-2 text-sm">
@@ -189,7 +198,7 @@ export default function AdminPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-gray-700 rounded-full h-1.5">
                     <div
-                      className="bg-blue-500 h-1.5 rounded-full transition-all"
+                      className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
                       style={{ width: `${Math.round((status.progress.done_creators / status.progress.total_creators) * 100)}%` }}
                     />
                   </div>
@@ -238,6 +247,24 @@ export default function AdminPage() {
               <div className="max-h-48 overflow-y-auto space-y-0.5 pr-1">
                 {status.progress.new_files.map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className={`shrink-0 px-1 py-0.5 rounded text-xs font-medium ${f.type === "video" ? "bg-blue-900 text-blue-300" : "bg-pink-900 text-pink-300"}`}>
+                      {f.type === "video" ? "動画" : "写真"}
+                    </span>
+                    <span className="text-gray-400 shrink-0">{f.creator}</span>
+                    <span className="text-gray-200 truncate">{f.file}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* スキャン中のリアルタイムログ */}
+          {isRunning && status?.progress && status.progress.new_files.length > 0 && (
+            <div className="mt-2 border-t border-gray-700 pt-2">
+              <div className="text-gray-400 text-xs mb-1">追加済み ({status.progress.new_files.length}件)</div>
+              <div className="max-h-32 overflow-y-auto space-y-0.5 pr-1">
+                {[...status.progress.new_files].reverse().map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs animate-fade-in">
                     <span className={`shrink-0 px-1 py-0.5 rounded text-xs font-medium ${f.type === "video" ? "bg-blue-900 text-blue-300" : "bg-pink-900 text-pink-300"}`}>
                       {f.type === "video" ? "動画" : "写真"}
                     </span>
@@ -361,4 +388,3 @@ export default function AdminPage() {
     </div>
   );
 }
-

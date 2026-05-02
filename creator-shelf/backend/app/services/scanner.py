@@ -115,6 +115,7 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
                     ):
                         video_count += 1
                         scan_progress["skipped"] += 1
+                        await asyncio.sleep(0)
                         continue
                     item = await _upsert_media(db, creator, f, "video", "mp4", existing_item)
                     if item:
@@ -139,6 +140,7 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
                     ):
                         photo_count += 1
                         scan_progress["skipped"] += 1
+                        await asyncio.sleep(0)
                         continue
                     item = await _upsert_media(db, creator, f, "image", "photo", existing_item)
                     if item:
