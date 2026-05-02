@@ -18,6 +18,8 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
   const [videoLoading, setVideoLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playlistRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!creatorId) return;
@@ -33,6 +35,16 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
       active = false;
     };
   }, [creatorId, mediaId]);
+
+  useEffect(() => {
+    if (!current || !playlistRef.current || !activeItemRef.current) return;
+    const container = playlistRef.current;
+    const item = activeItemRef.current;
+    const containerTop = container.scrollTop;
+    const containerCenter = containerTop + container.clientHeight / 2;
+    const itemCenter = item.offsetTop + item.offsetHeight / 2;
+    container.scrollTo({ top: itemCenter - container.clientHeight / 2, behavior: "smooth" });
+  }, [current]);
 
   useEffect(() => {
     if (!current || !videoRef.current) return;
@@ -159,17 +171,28 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
       {playlist.length > 1 && (
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-gray-400 mb-3">プレイリスト ({playlist.length})</h2>
-          <div className="space-y-1 max-h-60 overflow-y-auto">
+          <div ref={playlistRef} className="space-y-1 max-h-60 overflow-y-auto">
             {playlist.map((m) => (
               <button
                 key={m.id}
+                ref={m.id === current?.id ? activeItemRef : null}
                 onClick={() => setCurrent(m)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${m.id === current?.id ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition flex items-center gap-2 ${m.id === current?.id ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-700"}`}
               >
-                <div className="truncate">{m.video_title ?? m.file_name}</div>
-                {m.video_title && (
-                  <div className={`text-xs truncate ${m.id === current?.id ? "text-blue-200" : "text-gray-500"}`}>{m.file_name}</div>
+                {m.thumbnail_path && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/videos/${m.id}/thumbnail`}
+                    alt=""
+                    className="h-9 w-16 object-cover rounded flex-shrink-0"
+                  />
                 )}
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">{m.video_title ?? m.file_name}</div>
+                  {m.video_title && (
+                    <div className={`text-xs truncate ${m.id === current?.id ? "text-blue-200" : "text-gray-500"}`}>{m.file_name}</div>
+                  )}
+                </div>
               </button>
             ))}
           </div>
