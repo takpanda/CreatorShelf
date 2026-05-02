@@ -15,7 +15,7 @@ async def list_creators(
     favorite: bool | None = Query(None),
     has_video: bool | None = Query(None),
     has_photo: bool | None = Query(None),
-    sort: str = Query("name"),
+    sort: str = Query("last_added"),
     limit: int = Query(30, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),

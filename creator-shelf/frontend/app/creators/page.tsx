@@ -12,7 +12,7 @@ export default function CreatorsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "video" | "photo" | "both">("all");
-  const [sort, setSort] = useState("name");
+  const [sort, setSort] = useState("last_added");
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(true);
   const [loadingMore, setLoadingMore] = useState(false);
