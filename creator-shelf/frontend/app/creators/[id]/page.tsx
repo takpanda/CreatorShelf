@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,6 +22,8 @@ import {
 
 type Tab = "all" | "video" | "image" | "favorite" | "unseen";
 
+const PAGE_SIZE = 48;
+
 export default function CreatorDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   const router = useRouter();
@@ -30,29 +32,61 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
   const [tab, setTab] = useState<Tab>("all");
   const [sort, setSort] = useState("file_name");
   const [loading, setLoading] = useState(true);
-  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const loadMedia = async (t: Tab, s: string) => {
+  const buildMediaParams = useCallback((t: Tab, s: string): Record<string, string> => {
+    const p: Record<string, string> = { sort: s };
+    if (t === "video") p.type = "video";
+    else if (t === "image") p.type = "image";
+    else if (t === "favorite") p.favorite = "true";
+    else if (t === "unseen") p.seen = "unseen";
+    return p;
+  }, []);
+
+  // タブ/ソート変更時はリセットして最初から読み込み
+  useEffect(() => {
+    offsetRef.current = 0;
+    setMedia([]);
+    setHasMore(true);
     setLoading(true);
-    const params: Record<string, string> = { sort: s, limit: "200" };
-    if (t === "video") params.type = "video";
-    else if (t === "image") params.type = "image";
-    else if (t === "favorite") params.favorite = "true";
-    else if (t === "unseen") params.seen = "unseen";
-    try {
-      setMedia(await fetchMedia(id, params));
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchMedia(id, { ...buildMediaParams(tab, sort), limit: String(PAGE_SIZE), offset: "0" }).then((data) => {
+      setMedia(data);
+      offsetRef.current = data.length;
+      setHasMore(data.length === PAGE_SIZE);
+    }).finally(() => setLoading(false));
+  }, [id, tab, sort, buildMediaParams]);
 
   useEffect(() => {
     fetchCreator(id).then(setCreator);
   }, [id]);
 
+  // Intersection Observer で末尾検知 → 追加読み込み
   useEffect(() => {
-    loadMedia(tab, sort);
-  }, [id, tab, sort]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting) return;
+        if (loadingMore || !hasMore) return;
+        setLoadingMore(true);
+        fetchMedia(id, {
+          ...buildMediaParams(tab, sort),
+          limit: String(PAGE_SIZE),
+          offset: String(offsetRef.current),
+        }).then((data) => {
+          setMedia((prev) => [...prev, ...data]);
+          offsetRef.current += data.length;
+          setHasMore(data.length === PAGE_SIZE);
+        }).finally(() => setLoadingMore(false));
+      },
+      { rootMargin: "300px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [id, tab, sort, hasMore, loadingMore, buildMediaParams]);
 
   const handleCreatorFav = async () => {
     if (!creator) return;
@@ -180,6 +214,13 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
           ))}
         </div>
       )}
+      {/* センチネル：無限スクロール用 */}
+      <div ref={sentinelRef} className="h-10 mt-4 flex items-center justify-center">
+        {loadingMore && <span className="text-gray-400 text-sm">読み込み中...</span>}
+        {!loading && !loadingMore && !hasMore && media.length > 0 && (
+          <span className="text-gray-600 text-sm">すべて表示しました</span>
+        )}
+      </div>
     </div>
   );
 }
