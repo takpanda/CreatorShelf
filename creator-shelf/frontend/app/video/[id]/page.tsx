@@ -21,12 +21,17 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     if (!creatorId) return;
+    let active = true;
     fetchMedia(creatorId, { type: "video", limit: "500" }).then((items) => {
+      if (!active) return;
       const sorted = [...items].sort((a, b) => b.file_name.localeCompare(a.file_name));
       setPlaylist(sorted);
       const found = sorted.find((m) => m.id === mediaId) || sorted[0];
       setCurrent(found ?? null);
     });
+    return () => {
+      active = false;
+    };
   }, [creatorId, mediaId]);
 
   useEffect(() => {

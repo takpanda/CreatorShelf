@@ -16,11 +16,16 @@ export default function PhotoViewerPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     if (!creatorId) return;
+    let active = true;
     fetchMedia(creatorId, { type: "image", limit: "1000" }).then((items) => {
+      if (!active) return;
       setPlaylist(items);
       const found = items.find((m) => m.id === mediaId) || items[0];
       setCurrent(found ?? null);
     });
+    return () => {
+      active = false;
+    };
   }, [creatorId, mediaId]);
 
   useEffect(() => {
