@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.database import get_db
-from app.models import Creator
+from app.models import Creator, MediaItem
 from app.schemas import CreatorOut, FavoriteUpdate
 
 router = APIRouter(prefix="/api/creators", tags=["creators"])
@@ -63,6 +65,33 @@ async def get_creator(creator_id: int, db: AsyncSession = Depends(get_db)):
     if creator is None:
         raise HTTPException(status_code=404, detail="Creator not found")
     return creator
+
+
+@router.get("/{creator_id}/thumbnail")
+async def get_creator_thumbnail(creator_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Creator).where(Creator.id == creator_id))
+    creator = result.scalar_one_or_none()
+    if creator is None:
+        raise HTTPException(status_code=404, detail="Creator not found")
+
+    # クリエイター専用サムネイルが存在すればそれを返す
+    if creator.thumbnail_path and Path(creator.thumbnail_path).exists():
+        return FileResponse(creator.thumbnail_path, media_type="image/jpeg")
+
+    # なければメディアアイテムのサムネイルを代用する
+    media_result = await db.execute(
+        select(MediaItem)
+        .where(MediaItem.creator_id == creator_id, MediaItem.thumbnail_path.isnot(None), MediaItem.missing == False)  # noqa: E712
+        .order_by(MediaItem.id.asc())
+        .limit(1)
+    )
+    media = media_result.scalar_one_or_none()
+    if media and media.thumbnail_path and Path(media.thumbnail_path).exists():
+        creator.thumbnail_path = media.thumbnail_path
+        await db.commit()
+        return FileResponse(media.thumbnail_path, media_type="image/jpeg")
+
+    raise HTTPException(status_code=404, detail="Thumbnail not available")
 
 
 @router.patch("/{creator_id}/favorite", response_model=CreatorOut)

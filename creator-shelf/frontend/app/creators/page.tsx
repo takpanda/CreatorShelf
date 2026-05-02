@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { fetchCreators, toggleFavoriteCreator, Creator } from "@/lib/api";
-import { Heart, Film, Image as ImageIcon, Search, ArrowLeft } from "lucide-react";
+import { Heart, Film, Image as ImageIcon, Search, ArrowLeft, LayoutGrid } from "lucide-react";
 import CreatorDetailPanel from "@/components/CreatorDetailPanel";
 
 const PAGE_SIZE = 30;
@@ -13,6 +13,7 @@ export default function CreatorsPage() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "video" | "photo" | "both">("all");
   const [sort, setSort] = useState("last_added");
+  const [showThumbnail, setShowThumbnail] = useState(true);
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -57,7 +58,7 @@ export default function CreatorsPage() {
   // Intersection Observer で末尾検知 → 追加読み込み
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    if (!sentinel || loading) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
@@ -78,7 +79,7 @@ export default function CreatorsPage() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [buildParams]);
+  }, [buildParams, loading]);
 
   const handleFavorite = async (e: React.MouseEvent, c: Creator) => {
     e.preventDefault();
@@ -131,6 +132,16 @@ export default function CreatorsPage() {
             <option value="last_added">最終追加日</option>
             <option value="favorite">お気に入り</option>
           </select>
+          <button
+            onClick={() => setShowThumbnail((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition ${
+              showThumbnail ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
+            }`}
+            title="サムネイル表示切替"
+          >
+            <LayoutGrid size={14} />
+            <span>サムネイル</span>
+          </button>
         </div>
       </div>
       <div className="pt-4">
@@ -145,24 +156,37 @@ export default function CreatorsPage() {
             <div
               key={c.id}
               onClick={() => setSelectedCreatorId(c.id)}
-              className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative group cursor-pointer"
+              className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-700 transition relative group cursor-pointer"
             >
-              <button
-                onClick={(e) => handleFavorite(e, c)}
-                className="absolute top-2 right-2 text-gray-500 hover:text-red-400 transition"
-              >
-                <Heart size={16} fill={c.is_favorite ? "currentColor" : "none"} className={c.is_favorite ? "text-red-400" : ""} />
-              </button>
-              <div className="font-medium truncate pr-5">{c.name}</div>
-              <div className="text-xs text-gray-400 mt-2 flex gap-3">
-                <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
-                <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
-              </div>
-              {c.last_added_at && (
-                <div className="text-xs text-gray-500 mt-1">
-                  {new Date(c.last_added_at).toLocaleDateString("ja-JP")}
+              {/* サムネイル */}
+              {showThumbnail && (
+                <div className="relative w-full aspect-video bg-gray-700">
+                  <img
+                    src={`/api/creators/${c.id}/thumbnail`}
+                    alt={c.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
                 </div>
               )}
+              <div className="p-3">
+                <button
+                  onClick={(e) => handleFavorite(e, c)}
+                  className="absolute top-2 right-2 text-gray-500 hover:text-red-400 transition"
+                >
+                  <Heart size={16} fill={c.is_favorite ? "currentColor" : "none"} className={c.is_favorite ? "text-red-400" : ""} />
+                </button>
+                <div className="font-medium truncate pr-5 text-sm">{c.name}</div>
+                <div className="text-xs text-gray-400 mt-1 flex gap-3">
+                  <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
+                  <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
+                </div>
+                {c.last_added_at && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {new Date(c.last_added_at).toLocaleDateString("ja-JP")}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
