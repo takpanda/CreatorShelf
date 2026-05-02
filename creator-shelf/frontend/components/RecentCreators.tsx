@@ -8,6 +8,15 @@ interface RecentCreatorsProps {
   onCreatorClick?: (id: number) => void;
 }
 
+function sampleCreators(creators: Creator[], count: number): Creator[] {
+  const array = [...creators];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array.slice(0, count);
+}
+
 export default function RecentCreators({ onCreatorClick }: RecentCreatorsProps) {
   const [recent, setRecent] = useState<Creator[]>([]);
   const [favorites, setFavorites] = useState<Creator[]>([]);
@@ -15,8 +24,13 @@ export default function RecentCreators({ onCreatorClick }: RecentCreatorsProps) 
   useEffect(() => {
     fetchCreators({ sort: "last_added", limit: "6" } as any)
       .then((creators) => {
-        setFavorites(creators.filter((c) => c.is_favorite).slice(0, 4));
         setRecent(creators.slice(0, 6));
+      })
+      .catch(() => {});
+
+    fetchCreators({ favorite: "true", limit: "200" } as any)
+      .then((creators) => {
+        setFavorites(sampleCreators(creators, 4));
       })
       .catch(() => {});
   }, []);
