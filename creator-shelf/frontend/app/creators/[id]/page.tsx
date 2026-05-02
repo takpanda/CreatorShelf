@@ -30,7 +30,7 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
   const [creator, setCreator] = useState<Creator | null>(null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [tab, setTab] = useState<Tab>("all");
-  const [sort, setSort] = useState("file_name");
+  const [sort, setSort] = useState("newest");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);

@@ -55,7 +55,7 @@ async def list_creator_media(
     type: str = Query("all"),
     favorite: bool | None = Query(None),
     seen: str | None = Query(None),
-    sort: str = Query("file_name"),
+    sort: str = Query("newest"),
     limit: int = Query(50, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
