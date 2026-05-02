@@ -95,42 +95,45 @@ export default function CreatorsPage() {
         onClose={() => setSelectedCreatorId(null)}
       />
     )}
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
-        <h1 className="text-2xl font-bold">投稿者一覧</h1>
-      </div>
-
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            className="bg-gray-800 text-white pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="投稿者名検索..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+    <div className="max-w-6xl mx-auto px-4">
+      <div className="sticky top-0 z-10 bg-gray-950 pt-6 pb-3">
+        <div className="flex items-center gap-4 mb-4">
+          <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
+          <h1 className="text-2xl font-bold">投稿者一覧</h1>
         </div>
-        <select
-          className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm focus:outline-none"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as any)}
-        >
-          <option value="all">すべて</option>
-          <option value="video">動画あり</option>
-          <option value="photo">画像あり</option>
-          <option value="both">両方あり</option>
-        </select>
-        <select
-          className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm focus:outline-none"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-        >
-          <option value="name">名前順</option>
-          <option value="last_added">最終追加日</option>
-          <option value="favorite">お気に入り</option>
-        </select>
+
+        <div className="flex flex-wrap gap-3">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              className="bg-gray-800 text-white pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="投稿者名検索..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <select
+            className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm focus:outline-none"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as any)}
+          >
+            <option value="all">すべて</option>
+            <option value="video">動画あり</option>
+            <option value="photo">画像あり</option>
+            <option value="both">両方あり</option>
+          </select>
+          <select
+            className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm focus:outline-none"
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+          >
+            <option value="name">名前順</option>
+            <option value="last_added">最終追加日</option>
+            <option value="favorite">お気に入り</option>
+          </select>
+        </div>
       </div>
+      <div className="pt-4">
 
       {loading ? (
         <p className="text-gray-400">読み込み中...</p>
@@ -170,6 +173,7 @@ export default function CreatorsPage() {
         {!loading && !loadingMore && !hasMore && creators.length > 0 && (
           <span className="text-gray-600 text-sm">すべて表示しました</span>
         )}
+      </div>
       </div>
     </div>
     </>

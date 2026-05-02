@@ -120,51 +120,54 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      <div className="flex items-center gap-4 mb-4">
-        <Link href="/creators" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
-        <h1 className="text-2xl font-bold flex-1">{creator?.name ?? "..."}</h1>
-        {creator && (
-          <div className="flex gap-3 items-center">
-            <Link
-              href={`/slideshow/${id}`}
-              className="flex items-center gap-1 bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-sm transition"
-            >
-              <Presentation size={15} /> スライドショー
-            </Link>
-            <button onClick={handleCreatorFav} className="text-gray-400 hover:text-red-400 transition">
-              <Heart size={20} fill={creator.is_favorite ? "currentColor" : "none"} className={creator.is_favorite ? "text-red-400" : ""} />
-            </button>
-          </div>
-        )}
-      </div>
+    <div className="max-w-7xl mx-auto px-4">
+      <div className="sticky top-0 z-10 bg-gray-950 pt-6 pb-2">
+        <div className="flex items-center gap-4 mb-3">
+          <Link href="/creators" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
+          <h1 className="text-2xl font-bold flex-1">{creator?.name ?? "..."}</h1>
+          {creator && (
+            <div className="flex gap-3 items-center">
+              <Link
+                href={`/slideshow/${id}`}
+                className="flex items-center gap-1 bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-sm transition"
+              >
+                <Presentation size={15} /> スライドショー
+              </Link>
+              <button onClick={handleCreatorFav} className="text-gray-400 hover:text-red-400 transition">
+                <Heart size={20} fill={creator.is_favorite ? "currentColor" : "none"} className={creator.is_favorite ? "text-red-400" : ""} />
+              </button>
+            </div>
+          )}
+        </div>
 
-      <div className="flex items-center gap-2 mb-4 border-b border-gray-700 pb-2">
-        <div className="flex gap-1.5 overflow-x-auto flex-1 min-w-0 scrollbar-hide">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
-              }`}
+        <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
+          <div className="flex gap-1.5 overflow-x-auto flex-1 min-w-0 scrollbar-hide">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                  tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex-shrink-0">
+            <select
+              className="bg-gray-800 text-white px-2 py-1.5 rounded-lg text-sm"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
             >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex-shrink-0">
-          <select
-            className="bg-gray-800 text-white px-2 py-1.5 rounded-lg text-sm"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            <option value="file_name">ファイル名順</option>
-            <option value="newest">新しい順</option>
-            <option value="oldest">古い順</option>
-          </select>
+              <option value="file_name">ファイル名順</option>
+              <option value="newest">新しい順</option>
+              <option value="oldest">古い順</option>
+            </select>
+          </div>
         </div>
       </div>
+      <div className="pt-4">
 
       {loading ? (
         <p className="text-gray-400">読み込み中...</p>
@@ -235,6 +238,7 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
         {!loading && !loadingMore && !hasMore && media.length > 0 && (
           <span className="text-gray-600 text-sm">すべて表示しました</span>
         )}
+      </div>
       </div>
     </div>
   );
