@@ -3,6 +3,15 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install
 
+# ── 開発用ステージ（ホットリロード）────────────────────────────────────────
+FROM node:20-alpine AS dev
+WORKDIR /app
+# node_modules だけをイメージに焼いておく（ソースはボリュームでマウント）
+COPY --from=deps /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["npx", "next", "dev", "-H", "0.0.0.0"]
+# ─────────────────────────────────────────────────────────────────────────────
+
 FROM node:20-alpine AS builder
 WORKDIR /app
 ARG API_INTERNAL_URL=http://backend:8080

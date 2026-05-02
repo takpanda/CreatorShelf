@@ -1,0 +1,35 @@
+# 開発用オーバーライド（docker compose up で自動適用）
+# ・コード変更がコンテナに即反映される（イメージ再ビルド不要）
+# ・バックエンド: uvicorn --reload でホットリロード
+# ・フロントエンド: next dev でホットリロード
+#
+# 本番デプロイ時は明示的に compose ファイルを指定:
+#   docker compose -f docker-compose.yml up -d --build
+
+services:
+  backend:
+    # ホスト側の app/ ディレクトリをマウント → ファイル変更が即反映
+    volumes:
+      - ./backend/app:/app/app
+    # --reload: ファイル変更を検知して自動再起動
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8080"
+      - --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      # dev ステージを使う（next dev / ホットリロード）
+      target: dev
+    volumes:
+      # ホスト側のソースをマウント
+      - ./frontend:/app
+      # node_modules はイメージ内のものを使う（ホストで上書きさせない）
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
