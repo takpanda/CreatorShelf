@@ -1,12 +1,26 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.database import get_db
 from app.models import Creator
 from app.schemas import CreatorOut, FavoriteUpdate
 
 router = APIRouter(prefix="/api/creators", tags=["creators"])
+
+
+@router.get("/stats")
+async def get_stats(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(
+            func.count(Creator.id).label("creator_count"),
+            func.coalesce(func.sum(Creator.video_count), 0).label("video_count"),
+            func.coalesce(func.sum(Creator.photo_count), 0).label("photo_count"),
+            func.count(Creator.id).filter(Creator.is_favorite == True).label("favorite_count"),  # noqa: E712
+        )
+    )
+    row = result.one()
+    return {"creator_count": row.creator_count, "video_count": row.video_count, "photo_count": row.photo_count, "favorite_count": row.favorite_count}
 
 
 @router.get("", response_model=list[CreatorOut])

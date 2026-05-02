@@ -85,6 +85,29 @@ export async function toggleFavoriteMedia(id: number, isFavorite: boolean): Prom
   return res.json();
 }
 
+export async function fetchStats(): Promise<{ creator_count: number; video_count: number; photo_count: number; favorite_count: number }> {
+  const res = await fetch(`/api/creators/stats`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch stats");
+  return res.json();
+}
+
+export interface RecentMediaItem {
+  id: number;
+  creator_id: number;
+  creator_name: string;
+  media_type: "video" | "image";
+  thumbnail_path: string | null;
+  file_name: string;
+  duration: number | null;
+  file_modified_at: string | null;
+}
+
+export async function fetchRecentMedia(type: "all" | "video" | "image" = "all", limit = 12): Promise<RecentMediaItem[]> {
+  const res = await fetch(`/api/media/recent?type=${type}&limit=${limit}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch recent media");
+  return res.json();
+}
+
 export async function markSeen(id: number, isSeen: boolean): Promise<MediaItem> {
   const res = await fetch(`/api/media/${id}/seen`, {
     method: "PATCH",

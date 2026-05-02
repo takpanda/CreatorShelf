@@ -25,6 +25,30 @@ def _enrich(item: MediaItem) -> dict:
 router = APIRouter(tags=["media"])
 
 
+@router.get("/api/media/recent")
+async def list_recent_media(
+    type: str = Query("all"),
+    limit: int = Query(12, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(MediaItem, Creator.name.label("creator_name")).join(
+        Creator, MediaItem.creator_id == Creator.id
+    ).where(MediaItem.missing == False)  # noqa: E712
+    if type == "video":
+        stmt = stmt.where(MediaItem.media_type == "video")
+    elif type == "image":
+        stmt = stmt.where(MediaItem.media_type == "image")
+    stmt = stmt.order_by(MediaItem.file_modified_at.desc().nullslast()).limit(limit)
+    result = await db.execute(stmt)
+    rows = result.all()
+    items = []
+    for item, creator_name in rows:
+        d = _enrich(item)
+        d["creator_name"] = creator_name
+        items.append(d)
+    return items
+
+
 @router.get("/api/creators/{creator_id}/media", response_model=list[MediaItemOut])
 async def list_creator_media(
     creator_id: int,

@@ -46,17 +46,24 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
     return p;
   }, []);
 
+  const loadingRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+
   // タブ/ソート変更時はリセットして最初から読み込み
   useEffect(() => {
     offsetRef.current = 0;
     setMedia([]);
     setHasMore(true);
     setLoading(true);
+    loadingRef.current = true;
     fetchMedia(id, { ...buildMediaParams(tab, sort), limit: String(PAGE_SIZE), offset: "0" }).then((data) => {
       setMedia(data);
       offsetRef.current = data.length;
       setHasMore(data.length === PAGE_SIZE);
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      setLoading(false);
+      loadingRef.current = false;
+    });
   }, [id, tab, sort, buildMediaParams]);
 
   useEffect(() => {
@@ -70,7 +77,8 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
-        if (loadingMore || !hasMore) return;
+        if (loadingRef.current || loadingMoreRef.current || !hasMore) return;
+        loadingMoreRef.current = true;
         setLoadingMore(true);
         fetchMedia(id, {
           ...buildMediaParams(tab, sort),
@@ -80,13 +88,16 @@ export default function CreatorDetailPage({ params }: { params: { id: string } }
           setMedia((prev) => [...prev, ...data]);
           offsetRef.current += data.length;
           setHasMore(data.length === PAGE_SIZE);
-        }).finally(() => setLoadingMore(false));
+        }).finally(() => {
+          setLoadingMore(false);
+          loadingMoreRef.current = false;
+        });
       },
       { rootMargin: "300px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [id, tab, sort, hasMore, loadingMore, buildMediaParams]);
+  }, [id, tab, sort, hasMore, buildMediaParams]);
 
   const handleCreatorFav = async () => {
     if (!creator) return;

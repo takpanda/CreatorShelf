@@ -72,10 +72,13 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
     savePlayback(current.id, 0, 0);
   };
 
+  const from = searchParams.get("from");
+  const backHref = from === "home" ? "/" : `/creators/${creatorId}`;
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex items-center gap-3 mb-4">
-        <Link href={`/creators/${creatorId}`} className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
+        <Link href={backHref} className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-semibold truncate">
             {current?.video_title ?? current?.file_name}
