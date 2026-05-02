@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,11 +8,16 @@ from app.models import MediaItem, Creator
 from app.schemas import MediaItemOut, FavoriteUpdate, SeenUpdate, SlideshowResponse, SlideshowItem
 from app.services.txt_parser import parse_video_txt, parse_photo_txt
 
+logger = logging.getLogger(__name__)
+
 
 def _enrich(item: MediaItem) -> dict:
     """MediaItem を dict に変換し、txt 情報を付与する。"""
     d = MediaItemOut.model_validate(item).model_dump()
-    if item.file_path:
+    if not item.file_path:
+        return d
+
+    try:
         if item.media_type == "video":
             info = parse_video_txt(item.file_path)
             if info:
@@ -20,7 +26,23 @@ def _enrich(item: MediaItem) -> dict:
             info = parse_photo_txt(item.file_path)
             if info:
                 d.update(info)
+    except Exception:
+        logger.exception("Failed to enrich media item %s from file %s", item.id, item.file_path)
+
     return d
+
+
+def _serialize_recent_media(item: MediaItem, creator_name: str) -> dict:
+    return {
+        "id": item.id,
+        "creator_id": item.creator_id,
+        "creator_name": creator_name,
+        "media_type": item.media_type,
+        "thumbnail_path": item.thumbnail_path,
+        "file_name": item.file_name,
+        "duration": item.duration,
+        "file_modified_at": item.file_modified_at,
+    }
 
 router = APIRouter(tags=["media"])
 
@@ -41,12 +63,7 @@ async def list_recent_media(
     stmt = stmt.order_by(MediaItem.file_modified_at.desc().nullslast()).limit(limit)
     result = await db.execute(stmt)
     rows = result.all()
-    items = []
-    for item, creator_name in rows:
-        d = _enrich(item)
-        d["creator_name"] = creator_name
-        items.append(d)
-    return items
+    return [_serialize_recent_media(item, creator_name) for item, creator_name in rows]
 
 
 @router.get("/api/creators/{creator_id}/media", response_model=list[MediaItemOut])
