@@ -36,9 +36,11 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
   const [tab, setTab] = useState<Tab>("all");
   const [sort, setSort] = useState("file_name");
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
+  const hasMoreRef = useRef(true);
   const offsetRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -54,15 +56,25 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
 
   // タブ/ソート変更時はリセットして最初から読み込み
   useEffect(() => {
+    const abortController = new AbortController();
     offsetRef.current = 0;
+    loadingRef.current = true;
+    hasMoreRef.current = true;
     setMedia([]);
     setHasMore(true);
     setLoading(true);
     fetchMedia(creatorId, { ...buildMediaParams(tab, sort), limit: String(PAGE_SIZE), offset: "0" }).then((data) => {
+      if (abortController.signal.aborted) return;
       setMedia(data);
       offsetRef.current = data.length;
+      hasMoreRef.current = data.length === PAGE_SIZE;
       setHasMore(data.length === PAGE_SIZE);
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      if (abortController.signal.aborted) return;
+      loadingRef.current = false;
+      setLoading(false);
+    });
+    return () => abortController.abort();
   }, [creatorId, tab, sort, buildMediaParams]);
 
   useEffect(() => {
@@ -81,7 +93,7 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
-        if (loadingMoreRef.current || !hasMore) return;
+        if (loadingRef.current || loadingMoreRef.current || !hasMoreRef.current) return;
         loadingMoreRef.current = true;
         setLoadingMore(true);
         fetchMedia(creatorId, {
@@ -91,6 +103,7 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
         }).then((data) => {
           setMedia((prev) => [...prev, ...data]);
           offsetRef.current += data.length;
+          hasMoreRef.current = data.length === PAGE_SIZE;
           setHasMore(data.length === PAGE_SIZE);
         }).finally(() => {
           loadingMoreRef.current = false;
@@ -101,7 +114,7 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [creatorId, tab, sort, hasMore, buildMediaParams]);
+  }, [creatorId, tab, sort, buildMediaParams]);
 
   const handleCreatorFav = async () => {
     if (!creator) return;

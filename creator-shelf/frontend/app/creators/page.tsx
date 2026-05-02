@@ -14,9 +14,11 @@ export default function CreatorsPage() {
   const [filter, setFilter] = useState<"all" | "video" | "photo" | "both">("all");
   const [sort, setSort] = useState("name");
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
+  const hasMoreRef = useRef(true);
   const offsetRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -31,15 +33,25 @@ export default function CreatorsPage() {
 
   // フィルタ/ソート変更時はリセットして最初から読み込み
   useEffect(() => {
+    const abortController = new AbortController();
     offsetRef.current = 0;
+    loadingRef.current = true;
+    hasMoreRef.current = true;
     setCreators([]);
     setHasMore(true);
     setLoading(true);
     fetchCreators(buildParams(), PAGE_SIZE, 0).then((data) => {
+      if (abortController.signal.aborted) return;
       setCreators(data);
       offsetRef.current = data.length;
+      hasMoreRef.current = data.length === PAGE_SIZE;
       setHasMore(data.length === PAGE_SIZE);
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      if (abortController.signal.aborted) return;
+      loadingRef.current = false;
+      setLoading(false);
+    });
+    return () => abortController.abort();
   }, [q, filter, sort]);
 
   // Intersection Observer で末尾検知 → 追加読み込み
@@ -49,12 +61,13 @@ export default function CreatorsPage() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
-        if (loadingMoreRef.current || !hasMore) return;
+        if (loadingRef.current || loadingMoreRef.current || !hasMoreRef.current) return;
         loadingMoreRef.current = true;
         setLoadingMore(true);
         fetchCreators(buildParams(), PAGE_SIZE, offsetRef.current).then((data) => {
           setCreators((prev) => [...prev, ...data]);
           offsetRef.current += data.length;
+          hasMoreRef.current = data.length === PAGE_SIZE;
           setHasMore(data.length === PAGE_SIZE);
         }).finally(() => {
           loadingMoreRef.current = false;
@@ -65,7 +78,7 @@ export default function CreatorsPage() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, buildParams]);
+  }, [buildParams]);
 
   const handleFavorite = async (e: React.MouseEvent, c: Creator) => {
     e.preventDefault();
