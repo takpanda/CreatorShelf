@@ -35,6 +35,7 @@ interface ThumbStatus {
   done: number;
   current_file: string | null;
   generated: number;
+  skipped: number;
 }
 
 function formatJST(iso: string | null): string {
@@ -346,11 +347,18 @@ export default function AdminPage() {
               </div>
             )}
 
-            {!isThumbRunning && thumbStatus.generated > 0 && (
-              <div className="text-gray-400 text-xs">
-                生成済み: <span className="text-white font-medium">{thumbStatus.generated}</span> 件
-              </div>
-            )}
+            <div className="flex flex-wrap gap-4 text-xs text-gray-400">
+              {!isThumbRunning && thumbStatus.generated > 0 && (
+                <div>
+                  生成済み: <span className="text-white font-medium">{thumbStatus.generated}</span> 件
+                </div>
+              )}
+              {thumbStatus.skipped > 0 && (
+                <div className="text-gray-500">
+                  スキップ: <span className="text-white font-medium">{thumbStatus.skipped}</span> 件
+                </div>
+              )}
+            </div>
 
             {thumbStatus.error && (
               <div className="text-red-300 bg-red-900/30 rounded p-2 mt-1">

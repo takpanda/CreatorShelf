@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models import MediaItem
-from app.services.thumbnail import generate_image_thumbnail
+from app.services.thumbnail import generate_image_thumbnail, THUMBNAIL_FAILURE_THRESHOLD
 
 router = APIRouter(prefix="/api/photos", tags=["photos"])
 
@@ -35,10 +35,16 @@ async def get_photo_thumbnail(media_id: int, db: AsyncSession = Depends(get_db))
 
     thumb_path = item.thumbnail_path
     if not thumb_path or not Path(thumb_path).exists():
+        if item.thumbnail_failure_count >= THUMBNAIL_FAILURE_THRESHOLD:
+            raise HTTPException(status_code=404, detail="Thumbnail not available")
+
         thumb_path = generate_image_thumbnail(media_id, item.file_path)
         if thumb_path:
             item.thumbnail_path = thumb_path
-            await db.commit()
+            item.thumbnail_failure_count = 0
+        else:
+            item.thumbnail_failure_count += 1
+        await db.commit()
 
     if thumb_path and Path(thumb_path).exists():
         return FileResponse(thumb_path, media_type="image/jpeg")

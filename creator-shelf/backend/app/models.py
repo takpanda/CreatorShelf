@@ -37,6 +37,7 @@ class MediaItem(Base):
     height: Mapped[int | None] = mapped_column(Integer)
     duration: Mapped[float | None] = mapped_column(Float)
     thumbnail_path: Mapped[str | None] = mapped_column(Text)
+    thumbnail_failure_count: Mapped[int] = mapped_column(Integer, default=0)
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     favorite_at: Mapped[datetime | None] = mapped_column(DateTime)
     is_seen: Mapped[bool] = mapped_column(Boolean, default=False)

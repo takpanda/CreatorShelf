@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.database import get_db, AsyncSessionLocal
 from app.models import AppSetting, Creator, MediaItem
 from app.services.scanner import scan_nas, scan_progress
-from app.services.thumbnail import generate_image_thumbnail, generate_video_thumbnail
+from app.services.thumbnail import generate_image_thumbnail, generate_video_thumbnail, THUMBNAIL_FAILURE_THRESHOLD
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -28,6 +28,7 @@ _thumb_status: dict = {
     "done": 0,
     "current_file": None,
     "generated": 0,
+    "skipped": 0,
 }
 
 
@@ -85,6 +86,7 @@ async def _run_thumb_regen_background(missing_only: bool = False) -> None:
     _thumb_status["done"] = 0
     _thumb_status["generated"] = 0
     _thumb_status["current_file"] = None
+    _thumb_status["skipped"] = 0
     try:
         async with AsyncSessionLocal() as db:
             if missing_only:
@@ -92,12 +94,33 @@ async def _run_thumb_regen_background(missing_only: bool = False) -> None:
                     select(MediaItem.id).where(
                         MediaItem.missing == False,
                         MediaItem.thumbnail_path.is_(None),
+                        MediaItem.thumbnail_failure_count < THUMBNAIL_FAILURE_THRESHOLD,
+                    )
+                )
+                skipped_result = await db.execute(
+                    select(MediaItem.id).where(
+                        MediaItem.missing == False,
+                        MediaItem.thumbnail_path.is_(None),
+                        MediaItem.thumbnail_failure_count >= THUMBNAIL_FAILURE_THRESHOLD,
                     )
                 )
             else:
-                result = await db.execute(select(MediaItem.id).where(MediaItem.missing == False))  # noqa: E712
+                result = await db.execute(
+                    select(MediaItem.id).where(
+                        MediaItem.missing == False,
+                        MediaItem.thumbnail_failure_count < THUMBNAIL_FAILURE_THRESHOLD,
+                    )
+                )  # noqa: E712
+                skipped_result = await db.execute(
+                    select(MediaItem.id).where(
+                        MediaItem.missing == False,
+                        MediaItem.thumbnail_failure_count >= THUMBNAIL_FAILURE_THRESHOLD,
+                    )
+                )
             item_ids = result.scalars().all()
+            skipped_items = skipped_result.scalars().all()
             _thumb_status["total"] = len(item_ids)
+            _thumb_status["skipped"] = len(skipped_items)
             generated = 0
             failed = 0
             failed_samples: list[str] = []
@@ -113,8 +136,10 @@ async def _run_thumb_regen_background(missing_only: bool = False) -> None:
                     p = generate_video_thumbnail(item.id, item.file_path)
                 if p:
                     item.thumbnail_path = p
+                    item.thumbnail_failure_count = 0
                     generated += 1
                 else:
+                    item.thumbnail_failure_count += 1
                     failed += 1
                     if len(failed_samples) < 5:
                         failed_samples.append(Path(item.file_path).name)
@@ -159,6 +184,7 @@ async def thumbnail_status():
         "done": _thumb_status["done"],
         "current_file": _thumb_status["current_file"],
         "generated": _thumb_status["generated"],
+        "skipped": _thumb_status["skipped"],
     }
 
 

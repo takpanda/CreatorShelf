@@ -7,6 +7,7 @@ from app.config import settings
 
 
 THUMB_SIZE = (320, 320)
+THUMBNAIL_FAILURE_THRESHOLD = 3
 
 
 def _thumb_path(media_id: int) -> Path:
