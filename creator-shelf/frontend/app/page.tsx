@@ -1,11 +1,23 @@
+"use client";
+import { useState } from "react";
 import Link from "next/link";
 import { Heart, Users } from "lucide-react";
 import StatsBar from "@/components/StatsBar";
 import RecentCreators from "@/components/RecentCreators";
 import RecentMedia from "@/components/RecentMedia";
+import CreatorDetailPanel from "@/components/CreatorDetailPanel";
 
 export default function HomePage() {
+  const [selectedCreatorId, setSelectedCreatorId] = useState<number | null>(null);
+
   return (
+    <>
+      {selectedCreatorId !== null && (
+        <CreatorDetailPanel
+          creatorId={selectedCreatorId}
+          onClose={() => setSelectedCreatorId(null)}
+        />
+      )}
     <div className="max-w-6xl mx-auto px-4 py-8">
       <header className="flex items-center justify-between mb-10">
         <h1 className="text-2xl sm:text-3xl font-bold text-white">CreatorShelf</h1>
@@ -23,9 +35,9 @@ export default function HomePage() {
 
       <StatsBar />
 
-      <RecentMedia />
+      <RecentMedia onCreatorClick={setSelectedCreatorId} />
 
-      <RecentCreators />
+      <RecentCreators onCreatorClick={setSelectedCreatorId} />
 
       <section className="mt-10 text-center">
         <Link href="/creators" className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition font-medium">
@@ -33,5 +45,6 @@ export default function HomePage() {
         </Link>
       </section>
     </div>
+    </>
   );
 }

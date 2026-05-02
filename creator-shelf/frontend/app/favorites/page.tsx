@@ -4,6 +4,7 @@ import Link from "next/link";
 import { fetchCreators, fetchMedia, toggleFavoriteCreator, toggleFavoriteMedia, formatDuration, Creator, MediaItem } from "@/lib/api";
 import { ArrowLeft, Heart, Film, Image as ImageIcon, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
+import CreatorDetailPanel from "@/components/CreatorDetailPanel";
 
 type FavTab = "creators" | "all" | "video" | "image";
 
@@ -12,6 +13,7 @@ export default function FavoritesPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCreatorId, setSelectedCreatorId] = useState<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -56,6 +58,13 @@ export default function FavoritesPage() {
   ];
 
   return (
+    <>
+      {selectedCreatorId !== null && (
+        <CreatorDetailPanel
+          creatorId={selectedCreatorId}
+          onClose={() => setSelectedCreatorId(null)}
+        />
+      )}
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
@@ -80,8 +89,12 @@ export default function FavoritesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {creators.length === 0 && <p className="text-gray-400 col-span-full">お気に入り投稿者がいません</p>}
           {creators.map((c) => (
-            <Link key={c.id} href={`/creators/${c.id}`} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative">
-              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCreatorFav(c); }} className="absolute top-2 right-2 text-red-400 hover:text-gray-400 transition">
+            <div
+              key={c.id}
+              onClick={() => setSelectedCreatorId(c.id)}
+              className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative cursor-pointer"
+            >
+              <button onClick={(e) => { e.stopPropagation(); handleCreatorFav(c); }} className="absolute top-2 right-2 text-red-400 hover:text-gray-400 transition">
                 <Heart size={16} fill="currentColor" />
               </button>
               <div className="font-medium truncate pr-5">{c.name}</div>
@@ -89,7 +102,7 @@ export default function FavoritesPage() {
                 <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
                 <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       ) : (
@@ -134,5 +147,6 @@ export default function FavoritesPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Film, Image as ImageIcon } from "lucide-react";
 import { fetchCreators, Creator } from "@/lib/api";
 
-export default function RecentCreators() {
+interface RecentCreatorsProps {
+  onCreatorClick?: (id: number) => void;
+}
+
+export default function RecentCreators({ onCreatorClick }: RecentCreatorsProps) {
   const [recent, setRecent] = useState<Creator[]>([]);
   const [favorites, setFavorites] = useState<Creator[]>([]);
 
@@ -25,13 +28,17 @@ export default function RecentCreators() {
           <h2 className="text-xl font-semibold mb-4 text-gray-200">お気に入り投稿者</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {favorites.map((c) => (
-              <Link key={c.id} href={`/creators/${c.id}`} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition">
+              <div
+                key={c.id}
+                onClick={() => onCreatorClick?.(c.id)}
+                className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition cursor-pointer"
+              >
                 <div className="font-medium truncate">{c.name}</div>
                 <div className="text-sm text-gray-400 mt-1">
                   <Film size={12} className="inline mr-1" />{c.video_count}
                   <ImageIcon size={12} className="inline ml-3 mr-1" />{c.photo_count}
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         </section>
@@ -44,13 +51,17 @@ export default function RecentCreators() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {recent.map((c) => (
-              <Link key={c.id} href={`/creators/${c.id}`} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition">
+              <div
+                key={c.id}
+                onClick={() => onCreatorClick?.(c.id)}
+                className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition cursor-pointer"
+              >
                 <div className="font-medium truncate text-sm">{c.name}</div>
                 <div className="text-xs text-gray-400 mt-1">
                   <Film size={11} className="inline mr-1" />{c.video_count}
                   <ImageIcon size={11} className="inline ml-2 mr-1" />{c.photo_count}
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

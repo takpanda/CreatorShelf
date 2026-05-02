@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   fetchCreator,
   fetchMedia,
@@ -19,6 +18,8 @@ import {
   Film,
   Presentation,
 } from "lucide-react";
+import VideoPlayerOverlay from "@/components/VideoPlayerOverlay";
+import PhotoViewerOverlay from "@/components/PhotoViewerOverlay";
 
 type Tab = "all" | "video" | "image" | "favorite" | "unseen";
 
@@ -30,11 +31,11 @@ interface CreatorDetailPanelProps {
 }
 
 export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetailPanelProps) {
-  const router = useRouter();
   const [creator, setCreator] = useState<Creator | null>(null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [tab, setTab] = useState<Tab>("all");
   const [sort, setSort] = useState("newest");
+  const [overlay, setOverlay] = useState<{ type: "video" | "photo"; id: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -201,11 +202,7 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
                 key={m.id}
                 className="relative bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition group"
                 onClick={() => {
-                  if (m.media_type === "video") {
-                    router.push(`/video/${m.id}?creator=${creatorId}`);
-                  } else {
-                    router.push(`/photo/${m.id}?creator=${creatorId}`);
-                  }
+                  setOverlay({ type: m.media_type === "video" ? "video" : "photo", id: m.id });
                 }}
               >
                 <div className="relative">
@@ -261,6 +258,21 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
           )}
         </div>
       </div>
+
+      {overlay?.type === "video" && (
+        <VideoPlayerOverlay
+          mediaId={overlay.id}
+          creatorId={creatorId}
+          onClose={() => setOverlay(null)}
+        />
+      )}
+      {overlay?.type === "photo" && (
+        <PhotoViewerOverlay
+          mediaId={overlay.id}
+          creatorId={creatorId}
+          onClose={() => setOverlay(null)}
+        />
+      )}
     </div>
   );
 }
