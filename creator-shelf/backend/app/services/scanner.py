@@ -161,12 +161,20 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
         scanned_creators += 1
         scan_progress["done_creators"] = scanned_creators
         scan_progress["current_file"] = None
+        await db.commit()
 
     # mark missing files
     result = await db.execute(select(MediaItem).where(MediaItem.missing == False))  # noqa: E712
+    missing_batch = 0
     for item in result.scalars():
         if not Path(item.file_path).exists():
             item.missing = True
+            missing_batch += 1
+            if missing_batch >= 100:
+                await db.commit()
+                missing_batch = 0
+    if missing_batch:
+        await db.commit()
 
     await _save_setting(db, "last_scan_at", _utcnow().isoformat())
     await db.commit()

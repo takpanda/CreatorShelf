@@ -87,11 +87,15 @@ async def _run_thumb_regen_background() -> None:
     _thumb_status["current_file"] = None
     try:
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(MediaItem).where(MediaItem.missing == False))  # noqa: E712
-            items = result.scalars().all()
-            _thumb_status["total"] = len(items)
+            result = await db.execute(select(MediaItem.id).where(MediaItem.missing == False))  # noqa: E712
+            item_ids = result.scalars().all()
+            _thumb_status["total"] = len(item_ids)
             generated = 0
-            for item in items:
+            batch_count = 0
+            for item_id in item_ids:
+                item = await db.get(MediaItem, item_id)
+                if item is None:
+                    continue
                 _thumb_status["current_file"] = Path(item.file_path).name
                 if item.media_type == "image":
                     p = generate_image_thumbnail(item.id, item.file_path)
@@ -102,9 +106,14 @@ async def _run_thumb_regen_background() -> None:
                     generated += 1
                 _thumb_status["done"] += 1
                 _thumb_status["generated"] = generated
+                batch_count += 1
+                if batch_count >= 50:
+                    await db.commit()
+                    batch_count = 0
                 # 他のコルーチンに制御を渡してポーリングが通るようにする
                 await asyncio.sleep(0)
-            await db.commit()
+            if batch_count:
+                await db.commit()
         _thumb_status["finished_at"] = datetime.now(timezone.utc).isoformat()
     except Exception as exc:
         _thumb_status["error"] = str(exc)
