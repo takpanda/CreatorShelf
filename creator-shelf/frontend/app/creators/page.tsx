@@ -3,16 +3,19 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { fetchCreators, toggleFavoriteCreator, Creator } from "@/lib/api";
 import { Heart, Film, Image as ImageIcon, Search, ArrowLeft } from "lucide-react";
+import CreatorDetailPanel from "@/components/CreatorDetailPanel";
 
 const PAGE_SIZE = 30;
 
 export default function CreatorsPage() {
+  const [selectedCreatorId, setSelectedCreatorId] = useState<number | null>(null);
   const [creators, setCreators] = useState<Creator[]>([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "video" | "photo" | "both">("all");
   const [sort, setSort] = useState("name");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
   const offsetRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -46,19 +49,23 @@ export default function CreatorsPage() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
-        if (loadingMore || !hasMore) return;
+        if (loadingMoreRef.current || !hasMore) return;
+        loadingMoreRef.current = true;
         setLoadingMore(true);
         fetchCreators(buildParams(), PAGE_SIZE, offsetRef.current).then((data) => {
           setCreators((prev) => [...prev, ...data]);
           offsetRef.current += data.length;
           setHasMore(data.length === PAGE_SIZE);
-        }).finally(() => setLoadingMore(false));
+        }).finally(() => {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        });
       },
       { rootMargin: "300px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, buildParams]);
+  }, [hasMore, buildParams]);
 
   const handleFavorite = async (e: React.MouseEvent, c: Creator) => {
     e.preventDefault();
@@ -68,6 +75,13 @@ export default function CreatorsPage() {
   };
 
   return (
+    <>
+    {selectedCreatorId !== null && (
+      <CreatorDetailPanel
+        creatorId={selectedCreatorId}
+        onClose={() => setSelectedCreatorId(null)}
+      />
+    )}
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
@@ -112,10 +126,10 @@ export default function CreatorsPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {creators.map((c) => (
-            <Link
+            <div
               key={c.id}
-              href={`/creators/${c.id}`}
-              className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative group"
+              onClick={() => setSelectedCreatorId(c.id)}
+              className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative group cursor-pointer"
             >
               <button
                 onClick={(e) => handleFavorite(e, c)}
@@ -133,7 +147,7 @@ export default function CreatorsPage() {
                   {new Date(c.last_added_at).toLocaleDateString("ja-JP")}
                 </div>
               )}
-            </Link>
+            </div>
           ))}
         </div>
       )}
@@ -145,5 +159,6 @@ export default function CreatorsPage() {
         )}
       </div>
     </div>
+    </>
   );
 }
