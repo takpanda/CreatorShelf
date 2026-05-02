@@ -86,7 +86,7 @@ async def update_media_favorite(
     item.favorite_at = datetime.now(timezone.utc).replace(tzinfo=None) if body.isFavorite else None
     await db.commit()
     await db.refresh(item)
-    return item
+    return _enrich(item)
 
 
 @router.patch("/api/media/{media_id}/seen", response_model=MediaItemOut)
@@ -101,7 +101,7 @@ async def update_media_seen(
     item.seen_at = datetime.now(timezone.utc).replace(tzinfo=None) if body.isSeen else None
     await db.commit()
     await db.refresh(item)
-    return item
+    return _enrich(item)
 
 
 @router.get("/api/creators/{creator_id}/slideshow", response_model=SlideshowResponse)

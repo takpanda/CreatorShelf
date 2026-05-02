@@ -62,6 +62,7 @@ export default function CreatorsPage() {
 
   const handleFavorite = async (e: React.MouseEvent, c: Creator) => {
     e.preventDefault();
+    e.stopPropagation();
     const updated = await toggleFavoriteCreator(c.id, !c.is_favorite);
     setCreators((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   };

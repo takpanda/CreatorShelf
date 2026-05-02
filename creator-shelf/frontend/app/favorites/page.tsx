@@ -81,7 +81,7 @@ export default function FavoritesPage() {
           {creators.length === 0 && <p className="text-gray-400 col-span-full">お気に入り投稿者がいません</p>}
           {creators.map((c) => (
             <Link key={c.id} href={`/creators/${c.id}`} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative">
-              <button onClick={(e) => { e.preventDefault(); handleCreatorFav(c); }} className="absolute top-2 right-2 text-red-400 hover:text-gray-400 transition">
+              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCreatorFav(c); }} className="absolute top-2 right-2 text-red-400 hover:text-gray-400 transition">
                 <Heart size={16} fill="currentColor" />
               </button>
               <div className="font-medium truncate pr-5">{c.name}</div>
