@@ -124,10 +124,18 @@ export default function AdminPage() {
     setIntegrityResult(await res.json());
   };
 
-  const regenThumbs = async () => {
-    await fetch("/api/admin/thumbnails/regenerate", { method: "POST" });
+  const regenThumbs = async (missingOnly = false) => {
+    const url = `/api/admin/thumbnails/regenerate${missingOnly ? "?missingOnly=true" : ""}`;
+    await fetch(url, { method: "POST" });
     await fetchThumbStatus();
     startThumbPolling();
+  };
+
+  const confirmRegenThumbs = async () => {
+    if (!window.confirm("サムネイルを再生成します。よろしいですか？")) {
+      return;
+    }
+    await regenThumbs(false);
   };
 
   const isRunning = status?.running ?? false;
@@ -334,14 +342,24 @@ export default function AdminPage() {
           </div>
         )}
 
-        <button
-          onClick={regenThumbs}
-          disabled={isThumbRunning}
-          className="bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg transition flex items-center gap-2"
-        >
-          {isThumbRunning && <Loader2 size={14} className="animate-spin" />}
-          {isThumbRunning ? "生成中..." : "再生成"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={confirmRegenThumbs}
+            disabled={isThumbRunning}
+            className="bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg transition flex items-center gap-2"
+          >
+            {isThumbRunning && <Loader2 size={14} className="animate-spin" />}
+            {isThumbRunning ? "生成中..." : "再生成"}
+          </button>
+          <button
+            onClick={() => regenThumbs(true)}
+            disabled={isThumbRunning}
+            className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white px-5 py-2 rounded-lg transition"
+            title="DB上でサムネイル未作成のアイテムだけを生成します"
+          >
+            未作成のみ再生成
+          </button>
+        </div>
       </section>
 
       <section className="bg-gray-800 rounded-xl p-6">

@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db, AsyncSessionLocal
@@ -77,7 +77,7 @@ async def scan_status(db: AsyncSession = Depends(get_db)):
     }
 
 
-async def _run_thumb_regen_background() -> None:
+async def _run_thumb_regen_background(missing_only: bool = False) -> None:
     _thumb_status["running"] = True
     _thumb_status["started_at"] = datetime.now(timezone.utc).isoformat()
     _thumb_status["finished_at"] = None
@@ -87,10 +87,20 @@ async def _run_thumb_regen_background() -> None:
     _thumb_status["current_file"] = None
     try:
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(MediaItem.id).where(MediaItem.missing == False))  # noqa: E712
+            if missing_only:
+                result = await db.execute(
+                    select(MediaItem.id).where(
+                        MediaItem.missing == False,
+                        MediaItem.thumbnail_path.is_(None),
+                    )
+                )
+            else:
+                result = await db.execute(select(MediaItem.id).where(MediaItem.missing == False))  # noqa: E712
             item_ids = result.scalars().all()
             _thumb_status["total"] = len(item_ids)
             generated = 0
+            failed = 0
+            failed_samples: list[str] = []
             batch_count = 0
             for item_id in item_ids:
                 item = await db.get(MediaItem, item_id)
@@ -104,6 +114,10 @@ async def _run_thumb_regen_background() -> None:
                 if p:
                     item.thumbnail_path = p
                     generated += 1
+                else:
+                    failed += 1
+                    if len(failed_samples) < 5:
+                        failed_samples.append(Path(item.file_path).name)
                 _thumb_status["done"] += 1
                 _thumb_status["generated"] = generated
                 batch_count += 1
@@ -114,6 +128,9 @@ async def _run_thumb_regen_background() -> None:
                 await asyncio.sleep(0)
             if batch_count:
                 await db.commit()
+            if failed > 0:
+                sample_text = ", ".join(failed_samples)
+                _thumb_status["error"] = f"{failed} 件のサムネイル生成に失敗しました。例: {sample_text}"
         _thumb_status["finished_at"] = datetime.now(timezone.utc).isoformat()
     except Exception as exc:
         _thumb_status["error"] = str(exc)
@@ -124,10 +141,10 @@ async def _run_thumb_regen_background() -> None:
 
 
 @router.post("/thumbnails/regenerate")
-async def regenerate_thumbnails():
+async def regenerate_thumbnails(missing_only: bool = Query(False, alias="missingOnly")):
     if _thumb_status["running"]:
         return {"status": "already_running"}
-    asyncio.create_task(_run_thumb_regen_background())
+    asyncio.create_task(_run_thumb_regen_background(missing_only))
     return {"status": "started"}
 
 
