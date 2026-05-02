@@ -50,6 +50,7 @@ export default function AdminPage() {
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [integrityResult, setIntegrityResult] = useState<any>(null);
   const [thumbStatus, setThumbStatus] = useState<ThumbStatus | null>(null);
+  const [isStartingScan, setIsStartingScan] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const thumbPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // ポーリングのギャップでクリエイター名が消えないよう最後の値を保持
@@ -114,9 +115,20 @@ export default function AdminPage() {
   }, [fetchStatus, fetchThumbStatus, startPolling, startThumbPolling, stopPolling, stopThumbPolling]);
 
   const runScan = async () => {
-    await fetch("/api/admin/scan", { method: "POST" });
-    await fetchStatus();
-    startPolling();
+    setIsStartingScan(true);
+    try {
+      const res = await fetch("/api/admin/scan", { method: "POST" });
+      if (!res.ok) {
+        throw new Error("スキャンの開始に失敗しました");
+      }
+      await fetchStatus();
+      startPolling();
+    } catch (error) {
+      console.error(error);
+      await fetchStatus();
+    } finally {
+      setIsStartingScan(false);
+    }
   };
 
   const checkIntegrity = async () => {
@@ -140,6 +152,7 @@ export default function AdminPage() {
 
   const isRunning = status?.running ?? false;
   const isThumbRunning = thumbStatus?.running ?? false;
+  const isScanBusy = isRunning || isStartingScan;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -154,7 +167,12 @@ export default function AdminPage() {
         {/* ステータスパネル */}
         <div className="bg-gray-900 rounded-lg p-4 mb-4 space-y-2 text-sm">
           <div className="flex items-center gap-2">
-            {isRunning ? (
+            {isStartingScan && !isRunning ? (
+              <>
+                <Loader2 size={16} className="animate-spin text-blue-400" />
+                <span className="text-blue-400 font-medium">スキャン開始待機中...</span>
+              </>
+            ) : isRunning ? (
               <>
                 <Loader2 size={16} className="animate-spin text-blue-400" />
                 <span className="text-blue-400 font-medium">スキャン実行中...</span>
@@ -261,11 +279,11 @@ export default function AdminPage() {
         <div className="flex gap-2">
           <button
             onClick={runScan}
-            disabled={isRunning}
+            disabled={isScanBusy}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg transition flex items-center gap-2"
           >
-            {isRunning && <Loader2 size={14} className="animate-spin" />}
-            {isRunning ? "スキャン中..." : "スキャン実行"}
+            {isScanBusy && <Loader2 size={14} className="animate-spin" />}
+            {isRunning ? "スキャン中..." : isStartingScan ? "スキャン開始待機中..." : "スキャン実行"}
           </button>
           <button
             onClick={fetchStatus}
