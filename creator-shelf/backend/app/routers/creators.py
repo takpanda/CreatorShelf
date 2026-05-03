@@ -13,12 +13,13 @@ router = APIRouter(prefix="/api/creators", tags=["creators"])
 
 @router.get("/stats")
 async def get_stats(db: AsyncSession = Depends(get_db)):
+    non_empty = Creator.video_count + Creator.photo_count > 0
     result = await db.execute(
         select(
-            func.count(Creator.id).label("creator_count"),
+            func.count(Creator.id).filter(non_empty).label("creator_count"),
             func.coalesce(func.sum(Creator.video_count), 0).label("video_count"),
             func.coalesce(func.sum(Creator.photo_count), 0).label("photo_count"),
-            func.count(Creator.id).filter(Creator.is_favorite == True).label("favorite_count"),  # noqa: E712
+            func.count(Creator.id).filter(non_empty, Creator.is_favorite == True).label("favorite_count"),  # noqa: E712
         )
     )
     row = result.one()
@@ -36,7 +37,7 @@ async def list_creators(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Creator)
+    stmt = select(Creator).where((Creator.video_count + Creator.photo_count) > 0)
     if q:
         stmt = stmt.where(Creator.name.ilike(f"%{q}%"))
     if favorite is True:

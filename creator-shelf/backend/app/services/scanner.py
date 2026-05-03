@@ -76,6 +76,7 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
 
     scanned_creators = 0
     scanned_media = 0
+    non_empty_creators = 0
 
     scan_progress["total_creators"] = len(creators_map)
 
@@ -159,6 +160,8 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
         creator.updated_at = _utcnow()
 
         scanned_creators += 1
+        if video_count + photo_count > 0:
+            non_empty_creators += 1
         scan_progress["done_creators"] = scanned_creators
         scan_progress["current_file"] = None
         await db.commit()
@@ -185,7 +188,7 @@ async def _scan_nas_impl(db: AsyncSession) -> dict:
     scan_progress["current_creator"] = None
     scan_progress["current_file"] = None
 
-    return {"creators": scanned_creators, "media": scanned_media}
+    return {"creators": non_empty_creators, "media": scanned_media}
 
 
 def _append_log(creator: str, filename: str, media_type: str) -> None:

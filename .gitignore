@@ -27,3 +27,5 @@ yarn-error.log*
 pnpm-debug.log*
 .playwright-mcp
 .next/
+.venv/
+.pytest_cache/
