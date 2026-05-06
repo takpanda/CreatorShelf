@@ -85,6 +85,17 @@ export async function toggleFavoriteMedia(id: number, isFavorite: boolean): Prom
   return res.json();
 }
 
+export async function fetchFavoriteMedia(
+  params: Record<string, string> = {},
+  limit = 30,
+  offset = 0
+): Promise<MediaItem[]> {
+  const p = new URLSearchParams({ ...params, limit: String(limit), offset: String(offset) });
+  const res = await fetch(`/api/media/favorites?${p.toString()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch favorite media");
+  return res.json();
+}
+
 export async function fetchStats(): Promise<{ creator_count: number; video_count: number; photo_count: number; favorite_count: number }> {
   const res = await fetch(`/api/creators/stats`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch stats");

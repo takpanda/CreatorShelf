@@ -106,6 +106,31 @@ async def list_creator_media(
     return [_enrich(item) for item in result.scalars().all()]
 
 
+@router.get("/api/media/favorites", response_model=list[MediaItemOut])
+async def list_favorite_media(
+    type: str = Query("all"),
+    limit: int = Query(30, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    """お気に入りメディアを一括取得（全クリエイター対象）"""
+    stmt = (
+        select(MediaItem)
+        .join(Creator, MediaItem.creator_id == Creator.id)
+        .where(
+            MediaItem.missing == False,  # noqa: E712
+            MediaItem.is_favorite == True,  # noqa: E712
+        )
+    )
+    if type == "video":
+        stmt = stmt.where(MediaItem.media_type == "video")
+    elif type == "image":
+        stmt = stmt.where(MediaItem.media_type == "image")
+    stmt = stmt.order_by(Creator.favorite_at.desc().nullslast()).limit(limit).offset(offset)
+    result = await db.execute(stmt)
+    return [_enrich(item) for item in result.scalars().all()]
+
+
 @router.get("/api/media/{media_id}", response_model=MediaItemOut)
 async def get_media(media_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(MediaItem).where(MediaItem.id == media_id))

@@ -1,43 +1,87 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { fetchCreators, fetchMedia, toggleFavoriteCreator, toggleFavoriteMedia, formatDuration, Creator, MediaItem } from "@/lib/api";
+import { fetchCreators, fetchFavoriteMedia, toggleFavoriteCreator, toggleFavoriteMedia, formatDuration, Creator, MediaItem } from "@/lib/api";
 import { ArrowLeft, Heart, Film, Image as ImageIcon, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import CreatorDetailPanel from "@/components/CreatorDetailPanel";
 
 type FavTab = "creators" | "all" | "video" | "image";
 
+const PAGE_SIZE = 30;
+
 export default function FavoritesPage() {
   const [tab, setTab] = useState<FavTab>("creators");
   const [creators, setCreators] = useState<Creator[]>([]);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [selectedCreatorId, setSelectedCreatorId] = useState<number | null>(null);
   const router = useRouter();
 
+  // refs for infinite scroll
+  const loadingMoreRef = useRef(false);
+  const hasMoreRef = useRef(true);
+  const offsetRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Initial load
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      offsetRef.current = 0;
+      loadingMoreRef.current = false;
+      hasMoreRef.current = true;
+      setHasMore(true);
+      setMedia([]);
+
       if (tab === "creators") {
         setCreators(await fetchCreators({ favorite: "true" }));
       } else {
         const type = tab === "all" ? undefined : tab;
-        const params: Record<string, string> = { favorite: "true", limit: "200" };
+        const params: Record<string, string> = { favorite: "true" };
         if (type) params.type = type;
-        // fetch from all creators — use admin or a special endpoint; for MVP fetch all creators then their media
-        const allCreators = await fetchCreators({});
-        const all: MediaItem[] = [];
-        for (const c of allCreators) {
-          const items = await fetchMedia(c.id, params);
-          all.push(...items);
-        }
-        setMedia(all);
+        const items = await fetchFavoriteMedia(params, PAGE_SIZE, 0);
+        setMedia(items);
+        offsetRef.current = items.length;
+        hasMoreRef.current = items.length === PAGE_SIZE;
+        setHasMore(items.length === PAGE_SIZE);
       }
       setLoading(false);
     };
     load();
   }, [tab]);
+
+  // Infinite scroll for media tabs
+  useEffect(() => {
+    if (tab === "creators") return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting) return;
+        if (loadingMoreRef.current || !hasMoreRef.current) return;
+        loadingMoreRef.current = true;
+        setLoadingMore(true);
+        const type = tab === "all" ? undefined : tab;
+        const params: Record<string, string> = { favorite: "true" };
+        if (type) params.type = type;
+        fetchFavoriteMedia(params, PAGE_SIZE, offsetRef.current).then((data) => {
+          setMedia((prev) => [...prev, ...data]);
+          offsetRef.current += data.length;
+          hasMoreRef.current = data.length === PAGE_SIZE;
+          setHasMore(data.length === PAGE_SIZE);
+        }).finally(() => {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        });
+      },
+      { rootMargin: "300px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [tab, loading]);
 
   const handleCreatorFav = async (c: Creator) => {
     const updated = await toggleFavoriteCreator(c.id, !c.is_favorite);
@@ -106,45 +150,57 @@ export default function FavoritesPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {media.length === 0 && <p className="text-gray-400 col-span-full">お気に入りメディアがありません</p>}
-          {media.map((m) => (
-            <div
-              key={m.id}
-              className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition relative group"
-              onClick={() => m.media_type === "video" ? router.push(`/video/${m.id}?creator=${m.creator_id}`) : router.push(`/photo/${m.id}?creator=${m.creator_id}`)}
-            >
-              <div className="relative">
-                {m.thumbnail_path ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.media_type === "image" ? `/api/photos/${m.id}/thumbnail` : `/api/videos/${m.id}/thumbnail`} alt={m.file_name} className="w-full aspect-video object-cover" />
-                ) : (
-                  <div className="w-full aspect-video bg-gray-700 flex items-center justify-center">
-                    {m.media_type === "video" ? <Film size={28} className="text-gray-500" /> : <ImageIcon size={28} className="text-gray-500" />}
-                  </div>
-                )}
-                {m.media_type === "video" && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                    <div className="bg-black/60 rounded-full p-2">
-                      <Play size={18} fill="white" className="text-white" />
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {media.length === 0 && <p className="text-gray-400 col-span-full">お気に入りメディアがありません</p>}
+            {media.map((m) => (
+              <div
+                key={m.id}
+                className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition relative group"
+                onClick={() => m.media_type === "video" ? router.push(`/video/${m.id}?creator=${m.creator_id}`) : router.push(`/photo/${m.id}?creator=${m.creator_id}`)}
+              >
+                <div className="relative">
+                  {m.thumbnail_path ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.media_type === "image" ? `/api/photos/${m.id}/thumbnail` : `/api/videos/${m.id}/thumbnail`} alt={m.file_name} className="w-full aspect-video object-cover" />
+                  ) : (
+                    <div className="w-full aspect-video bg-gray-700 flex items-center justify-center">
+                      {m.media_type === "video" ? <Film size={28} className="text-gray-500" /> : <ImageIcon size={28} className="text-gray-500" />}
                     </div>
-                  </div>
-                )}
-                {m.media_type === "video" && formatDuration(m.duration) && (
-                  <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
-                    {formatDuration(m.duration)}
-                  </div>
-                )}
+                  )}
+                  {m.media_type === "video" && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                      <div className="bg-black/60 rounded-full p-2">
+                        <Play size={18} fill="white" className="text-white" />
+                      </div>
+                    </div>
+                  )}
+                  {m.media_type === "video" && formatDuration(m.duration) && (
+                    <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+                      {formatDuration(m.duration)}
+                    </div>
+                  )}
+                </div>
+                <button onClick={(e) => handleMediaFav(e, m)} className="absolute top-1.5 right-1.5 text-red-400 hover:text-gray-400 transition">
+                  <Heart size={14} fill="currentColor" />
+                </button>
+                <div className="p-2">
+                  <div className="text-xs text-gray-300 truncate">{m.file_name}</div>
+                </div>
               </div>
-              <button onClick={(e) => handleMediaFav(e, m)} className="absolute top-1.5 right-1.5 text-red-400 hover:text-gray-400 transition">
-                <Heart size={14} fill="currentColor" />
-              </button>
-              <div className="p-2">
-                <div className="text-xs text-gray-300 truncate">{m.file_name}</div>
-              </div>
+            ))}
+          </div>
+          {loadingMore && (
+            <div className="text-center py-6 text-gray-400">
+              <svg className="animate-spin h-6 w-6 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-sm mt-2 block">読み込み中...</span>
             </div>
-          ))}
-        </div>
+          )}
+          <div ref={sentinelRef} className="h-4" />
+        </>
       )}
     </div>
     </>
