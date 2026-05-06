@@ -126,7 +126,7 @@ async def list_favorite_media(
         stmt = stmt.where(MediaItem.media_type == "video")
     elif type == "image":
         stmt = stmt.where(MediaItem.media_type == "image")
-    stmt = stmt.order_by(Creator.favorite_at.desc().nullslast()).limit(limit).offset(offset)
+    stmt = stmt.order_by(MediaItem.favorite_at.desc().nullslast()).limit(limit).offset(offset)
     result = await db.execute(stmt)
     return [_enrich(item) for item in result.scalars().all()]
 

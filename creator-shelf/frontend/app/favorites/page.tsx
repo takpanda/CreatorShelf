@@ -26,56 +26,87 @@ export default function FavoritesPage() {
   const offsetRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Initial load
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      offsetRef.current = 0;
-      loadingMoreRef.current = false;
-      hasMoreRef.current = true;
-      setHasMore(true);
-      setMedia([]);
+  const loadFavoritesPage = async () => {
+    setLoading(true);
+    offsetRef.current = 0;
+    loadingMoreRef.current = false;
+    hasMoreRef.current = true;
+    setHasMore(true);
+    setMedia([]);
+    setCreators([]);
 
+    try {
       if (tab === "creators") {
-        setCreators(await fetchCreators({ favorite: "true" }));
+        const items = await fetchCreators({ favorite: "true" }, PAGE_SIZE, 0);
+        setCreators(items);
+        offsetRef.current = items.length;
+        const more = items.length === PAGE_SIZE;
+        hasMoreRef.current = more;
+        setHasMore(more);
       } else {
         const type = tab === "all" ? undefined : tab;
-        const params: Record<string, string> = { favorite: "true" };
+        const params: Record<string, string> = {};
         if (type) params.type = type;
         const items = await fetchFavoriteMedia(params, PAGE_SIZE, 0);
         setMedia(items);
         offsetRef.current = items.length;
-        hasMoreRef.current = items.length === PAGE_SIZE;
-        setHasMore(items.length === PAGE_SIZE);
+        const more = items.length === PAGE_SIZE;
+        hasMoreRef.current = more;
+        setHasMore(more);
       }
+    } catch (error) {
+      console.error("Failed to load favorites page", error);
+      setHasMore(false);
+    } finally {
       setLoading(false);
-    };
-    load();
+    }
+  };
+
+  useEffect(() => {
+    void loadFavoritesPage();
   }, [tab]);
 
-  // Infinite scroll for media tabs
+  const loadMore = async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      if (tab === "creators") {
+        const items = await fetchCreators({ favorite: "true" }, PAGE_SIZE, offsetRef.current);
+        setCreators((prev) => [...prev, ...items]);
+        offsetRef.current += items.length;
+        const more = items.length === PAGE_SIZE;
+        hasMoreRef.current = more;
+        setHasMore(more);
+      } else {
+        const type = tab === "all" ? undefined : tab;
+        const params: Record<string, string> = {};
+        if (type) params.type = type;
+        const items = await fetchFavoriteMedia(params, PAGE_SIZE, offsetRef.current);
+        setMedia((prev) => [...prev, ...items]);
+        offsetRef.current += items.length;
+        const more = items.length === PAGE_SIZE;
+        hasMoreRef.current = more;
+        setHasMore(more);
+      }
+    } catch (error) {
+      console.error("Failed to load more favorites", error);
+      hasMoreRef.current = false;
+      setHasMore(false);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
-    if (tab === "creators") return;
     const sentinel = sentinelRef.current;
     if (!sentinel || loading) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return;
-        if (loadingMoreRef.current || !hasMoreRef.current) return;
-        loadingMoreRef.current = true;
-        setLoadingMore(true);
-        const type = tab === "all" ? undefined : tab;
-        const params: Record<string, string> = { favorite: "true" };
-        if (type) params.type = type;
-        fetchFavoriteMedia(params, PAGE_SIZE, offsetRef.current).then((data) => {
-          setMedia((prev) => [...prev, ...data]);
-          offsetRef.current += data.length;
-          hasMoreRef.current = data.length === PAGE_SIZE;
-          setHasMore(data.length === PAGE_SIZE);
-        }).finally(() => {
-          loadingMoreRef.current = false;
-          setLoadingMore(false);
-        });
+        void loadMore();
       },
       { rootMargin: "300px" }
     );
@@ -110,45 +141,59 @@ export default function FavoritesPage() {
         />
       )}
     <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
-        <h1 className="text-2xl font-bold flex-1">お気に入り</h1>
-      </div>
+      <div className="sticky top-0 z-10 bg-gray-950 pt-6 pb-3">
+        <div className="flex items-center gap-4 mb-6">
+          <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
+          <h1 className="text-2xl font-bold flex-1">お気に入り</h1>
+        </div>
 
-      <div className="flex gap-2 mb-6 border-b border-gray-700 pb-2">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-1.5 rounded-lg text-sm transition ${tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
-          >
-            {t.label}
-          </button>
-        ))}
+        <div className="flex gap-2 mb-6 border-b border-gray-700 pb-2">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-1.5 rounded-lg text-sm transition ${tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
         <p className="text-gray-400">読み込み中...</p>
       ) : tab === "creators" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {creators.length === 0 && <p className="text-gray-400 col-span-full">お気に入り投稿者がいません</p>}
-          {creators.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => setSelectedCreatorId(c.id)}
-              className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative cursor-pointer"
-            >
-              <button onClick={(e) => { e.stopPropagation(); handleCreatorFav(c); }} className="absolute top-2 right-2 text-red-400 hover:text-gray-400 transition">
-                <Heart size={16} fill="currentColor" />
-              </button>
-              <div className="font-medium truncate pr-5">{c.name}</div>
-              <div className="text-xs text-gray-400 mt-2 flex gap-3">
-                <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
-                <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {creators.length === 0 && <p className="text-gray-400 col-span-full">お気に入り投稿者がいません</p>}
+            {creators.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => setSelectedCreatorId(c.id)}
+                className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative cursor-pointer"
+              >
+                <button onClick={(e) => { e.stopPropagation(); handleCreatorFav(c); }} className="absolute top-2 right-2 text-red-400 hover:text-gray-400 transition">
+                  <Heart size={16} fill="currentColor" />
+                </button>
+                <div className="font-medium truncate pr-5">{c.name}</div>
+                <div className="text-xs text-gray-400 mt-2 flex gap-3">
+                  <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
+                  <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
+                </div>
               </div>
+            ))}
+          </div>
+          {loadingMore && (
+            <div className="text-center py-6 text-gray-400">
+              <svg className="animate-spin h-6 w-6 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-sm mt-2 block">読み込み中...</span>
             </div>
-          ))}
-        </div>
+          )}
+          <div ref={sentinelRef} className="h-4" />
+        </>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
