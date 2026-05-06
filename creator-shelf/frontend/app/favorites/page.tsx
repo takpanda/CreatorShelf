@@ -37,7 +37,7 @@ export default function FavoritesPage() {
 
     try {
       if (tab === "creators") {
-        const items = await fetchCreators({ favorite: "true" }, PAGE_SIZE, 0);
+        const items = await fetchCreators({ favorite: "true", sort: "name" }, PAGE_SIZE, 0);
         setCreators(items);
         offsetRef.current = items.length;
         const more = items.length === PAGE_SIZE;
@@ -73,7 +73,7 @@ export default function FavoritesPage() {
 
     try {
       if (tab === "creators") {
-        const items = await fetchCreators({ favorite: "true" }, PAGE_SIZE, offsetRef.current);
+        const items = await fetchCreators({ favorite: "true", sort: "name" }, PAGE_SIZE, offsetRef.current);
         setCreators((prev) => [...prev, ...items]);
         offsetRef.current += items.length;
         const more = items.length === PAGE_SIZE;
