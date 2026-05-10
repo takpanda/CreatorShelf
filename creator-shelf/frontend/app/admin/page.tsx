@@ -54,25 +54,75 @@ export default function AdminPage() {
   const [isStartingScan, setIsStartingScan] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const thumbPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // ポーリングのギャップでクリエイター名が消えないよう最後の値を保持
   const lastCreatorRef = useRef<string | null>(null);
   const lastFileRef = useRef<string | null>(null);
+  const errorCountRef = useRef(0);
 
-  const fetchStatus = useCallback(async () => {
-    const res = await fetch("/api/admin/scan/status");
-    const data: ScanStatus = await res.json();
-    if (data.progress?.current_creator) lastCreatorRef.current = data.progress.current_creator;
-    if (data.progress?.current_file) lastFileRef.current = data.progress.current_file;
-    if (!data.running) { lastCreatorRef.current = null; lastFileRef.current = null; }
-    setStatus(data);
-    return data;
+  const fetchStatus = useCallback(async (): Promise<ScanStatus> => {
+    let data: ScanStatus;
+
+    try {
+      const response = await fetch("/api/admin/scan/status");
+
+      if (!response.ok) {
+        errorCountRef.current += 1;
+        data = {
+          running: false,
+          last_scan_at: null,
+          started_at: null,
+          finished_at: null,
+          error: `HTTP ${response.status}: ${response.statusText}`,
+          progress: null,
+          last_result: null,
+        };
+        setStatus(data);
+        return data;
+      }
+
+      data = await response.json();
+      if (data.progress?.current_creator) lastCreatorRef.current = data.progress.current_creator;
+      if (data.progress?.current_file) lastFileRef.current = data.progress.current_file;
+      if (!data.running) { lastCreatorRef.current = null; lastFileRef.current = null; }
+      errorCountRef.current = 0;
+      setStatus(data);
+      return data;
+    } catch (e) {
+      errorCountRef.current += 1;
+      const data: ScanStatus = {
+        running: false,
+        last_scan_at: null,
+        started_at: null,
+        finished_at: null,
+        error: (e as Error).message,
+        progress: null,
+        last_result: null,
+      };
+      setStatus(data);
+      return data;
+    }
   }, []);
 
-  const fetchThumbStatus = useCallback(async () => {
-    const res = await fetch("/api/admin/thumbnails/status");
-    const data: ThumbStatus = await res.json();
-    setThumbStatus(data);
-    return data;
+  const fetchThumbStatus = useCallback(async (): Promise<ThumbStatus> => {
+    try {
+      const res = await fetch("/api/admin/thumbnails/status");
+      const data: ThumbStatus = await res.json();
+      setThumbStatus(data);
+      return data;
+    } catch (e) {
+      const fallback: ThumbStatus = {
+        running: false,
+        started_at: null,
+        finished_at: null,
+        error: (e as Error).message,
+        total: 0,
+        done: 0,
+        current_file: null,
+        generated: 0,
+        skipped: 0,
+      };
+      setThumbStatus(fallback);
+      return fallback;
+    }
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -92,16 +142,24 @@ export default function AdminPage() {
   const startPolling = useCallback(() => {
     stopPolling();
     pollRef.current = setInterval(async () => {
-      const data = await fetchStatus();
-      if (!data.running) stopPolling();
+      try {
+        const data = await fetchStatus();
+        if (!data.running) stopPolling();
+      } catch (e) {
+        console.error("ポーリング中にエラー:", e);
+      }
     }, 2000);
   }, [fetchStatus, stopPolling]);
 
   const startThumbPolling = useCallback(() => {
     stopThumbPolling();
     thumbPollRef.current = setInterval(async () => {
-      const data = await fetchThumbStatus();
-      if (!data.running) stopThumbPolling();
+      try {
+        const data = await fetchThumbStatus();
+        if (!data.running) stopThumbPolling();
+      } catch (e) {
+        console.error("サムネイルポーリング中にエラー:", e);
+      }
     }, 1000);
   }, [fetchThumbStatus, stopThumbPolling]);
 
