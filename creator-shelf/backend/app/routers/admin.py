@@ -52,7 +52,10 @@ async def _run_scan_background() -> None:
 async def trigger_scan():
     if _scan_status["running"]:
         return {"status": "already_running"}
-    asyncio.create_task(_run_scan_background())
+    _scan_status["running"] = True
+    task = asyncio.create_task(_run_scan_background())
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
     return {"status": "started"}
 
 
@@ -76,6 +79,9 @@ async def scan_status(db: AsyncSession = Depends(get_db)):
             "new_files": scan_progress["new_files"],
         },
     }
+
+
+_tasks: set[asyncio.Task] = set()
 
 
 async def _run_thumb_regen_background(missing_only: bool = False) -> None:
