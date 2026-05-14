@@ -76,7 +76,7 @@ export default function VideoPlayerPage({ params }: { params: { id: string } }) 
   );
 
   const cycleRepeat = () => {
-    setRepeatMode((m) => (m === "none" ? "all" : m === "all" ? "one" : "none"));
+    setRepeatMode((m) => (m === "none" ? "one" : m === "one" ? "all" : "none"));
   };
 
   const handleEnded = () => {
