@@ -84,7 +84,7 @@ export default function VideoPlayerOverlay({ mediaId, creatorId, onClose }: Prop
   );
 
   const cycleRepeat = () => {
-    setRepeatMode((m) => (m === "none" ? "all" : m === "all" ? "one" : "none"));
+    setRepeatMode((m) => (m === "none" ? "one" : m === "one" ? "all" : "none"));
   };
 
   const handleEnded = () => {
