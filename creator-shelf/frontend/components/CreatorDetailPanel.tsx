@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import VideoPlayerOverlay from "@/components/VideoPlayerOverlay";
 import PhotoViewerOverlay from "@/components/PhotoViewerOverlay";
+import { SkeletonGrid, EmptyState, FavoriteButton, Spinner } from "@/components/ui";
 
 type Tab = "all" | "video" | "image" | "favorite" | "unseen";
 
@@ -87,6 +88,24 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [creatorId]);
 
+  // パネル表示中は背景のスクロールをロック
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  // Escキーで閉じる(オーバーレイ表示中はオーバーレイ側を優先)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !overlay) onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [overlay, onClose]);
+
   // Intersection Observer で末尾検知 → 追加読み込み
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -138,34 +157,39 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-900 overflow-y-auto" ref={scrollRef}>
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="sticky top-0 z-10 bg-gray-950 pt-6 pb-2">
-          <div className="flex items-center gap-4 mb-4">
+    <div className="fixed inset-0 z-50 bg-gray-950 overflow-y-auto animate-fade-in" ref={scrollRef}>
+      <div className="max-w-7xl mx-auto px-4 pb-6">
+        <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-sm pt-6 pb-2 border-b border-gray-800/80 -mx-4 px-4">
+          <div className="flex items-center gap-3 mb-4">
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition"
+              className="text-gray-400 hover:text-white hover:bg-gray-800 p-2 -ml-2 rounded-lg transition"
               aria-label="一覧に戻る"
             >
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-2xl font-bold flex-1">{creator?.name ?? "..."}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold flex-1 truncate">{creator?.name ?? "..."}</h1>
             {creator && (
-              <div className="flex gap-3 items-center">
+              <div className="flex gap-2 items-center shrink-0">
                 <Link
                   href={`/slideshow/${creatorId}`}
-                  className="flex items-center gap-1 bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-sm transition"
+                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-sm transition"
                 >
-                  <Presentation size={15} /> スライドショー
+                  <Presentation size={15} />
+                  <span className="hidden sm:inline">スライドショー</span>
                 </Link>
-                <button onClick={handleCreatorFav} className="text-gray-400 hover:text-red-400 transition">
-                  <Heart size={20} fill={creator.is_favorite ? "currentColor" : "none"} className={creator.is_favorite ? "text-red-400" : ""} />
+                <button
+                  onClick={handleCreatorFav}
+                  aria-label={creator.is_favorite ? "お気に入り解除" : "お気に入り登録"}
+                  className={`p-2 rounded-lg transition hover:bg-gray-800 ${creator.is_favorite ? "text-red-400" : "text-gray-400 hover:text-red-400"}`}
+                >
+                  <Heart size={20} fill={creator.is_favorite ? "currentColor" : "none"} />
                 </button>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-2 mb-4 border-b border-gray-700 pb-2">
+          <div className="flex items-center gap-2 pb-2">
             <div className="flex gap-1.5 overflow-x-auto flex-1 min-w-0 scrollbar-hide">
               {tabs.map((t) => (
                 <button
@@ -181,7 +205,7 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
             </div>
             <div className="flex-shrink-0">
               <select
-                className="bg-gray-800 text-white px-2 py-1.5 rounded-lg text-sm"
+                className="bg-gray-800 text-white px-2 py-1.5 rounded-lg text-sm border border-transparent focus:outline-none focus:border-blue-500 cursor-pointer"
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
               >
@@ -193,27 +217,33 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
           </div>
         </div>
 
+        <div className="pt-4">
         {loading ? (
-          <p className="text-gray-400">読み込み中...</p>
+          <SkeletonGrid count={12} />
         ) : media.length === 0 ? (
-          <p className="text-gray-400">メディアがありません</p>
+          <EmptyState
+            icon={tab === "favorite" ? Heart : Film}
+            message="メディアがありません"
+            hint={tab !== "all" ? "別のタブを選択してみてください" : undefined}
+          />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-fade-in">
             {media.map((m) => (
               <div
                 key={m.id}
-                className="relative bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition group"
+                className="relative bg-gray-800/80 border border-gray-700/50 rounded-xl overflow-hidden cursor-pointer hover:border-blue-500 transition group"
                 onClick={() => {
                   setOverlay({ type: m.media_type === "video" ? "video" : "photo", id: m.id });
                 }}
               >
-                <div className="relative">
+                <div className="relative overflow-hidden">
                   {m.thumbnail_path ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={m.media_type === "image" ? `/api/photos/${m.id}/thumbnail` : `/api/videos/${m.id}/thumbnail`}
                       alt={m.file_name}
-                      className="w-full aspect-video object-cover"
+                      loading="lazy"
+                      className="w-full aspect-video object-cover transition duration-300 group-hover:scale-105"
                     />
                   ) : (
                     <div className="w-full aspect-video bg-gray-700 flex items-center justify-center">
@@ -221,24 +251,30 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
                     </div>
                   )}
                   {m.media_type === "video" && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                      <div className="bg-black/60 rounded-full p-3">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/20">
+                      <div className="bg-black/60 backdrop-blur-sm rounded-full p-3">
                         <Play size={20} fill="white" className="text-white" />
                       </div>
                     </div>
                   )}
                   {m.media_type === "video" && formatDuration(m.duration) && (
-                    <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+                    <div className="absolute bottom-1.5 right-1.5 bg-black/70 backdrop-blur-sm text-white text-xs px-1.5 py-0.5 rounded-md">
                       {formatDuration(m.duration)}
                     </div>
                   )}
+                  {!m.is_seen && (
+                    <span
+                      className="absolute top-2 left-2 w-2 h-2 rounded-full bg-blue-400 ring-2 ring-gray-950/60"
+                      title="未閲覧"
+                    />
+                  )}
                 </div>
-                <button
+                <FavoriteButton
+                  active={m.is_favorite}
                   onClick={(e) => handleMediaFav(e, m)}
-                  className="absolute top-1.5 right-1.5 text-gray-400 hover:text-red-400 transition"
-                >
-                  <Heart size={14} fill={m.is_favorite ? "currentColor" : "none"} className={m.is_favorite ? "text-red-400" : ""} />
-                </button>
+                  size={14}
+                  className="absolute top-1 right-1"
+                />
                 <div className="p-2">
                   {m.media_type === "video" && m.video_title && (
                     <div className="text-xs text-white font-medium truncate mb-0.5">{m.video_title}</div>
@@ -246,7 +282,7 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
                   {m.media_type === "image" && m.photo_title && (
                     <div className="text-xs text-white font-medium truncate mb-0.5">{m.photo_title}</div>
                   )}
-                  <div className="text-xs text-gray-300 truncate">{m.file_name}</div>
+                  <div className="text-xs text-gray-400 truncate">{m.file_name}</div>
                 </div>
               </div>
             ))}
@@ -254,10 +290,11 @@ export default function CreatorDetailPanel({ creatorId, onClose }: CreatorDetail
         )}
         {/* センチネル：無限スクロール用 */}
         <div ref={sentinelRef} className="h-10 mt-4 flex items-center justify-center">
-          {loadingMore && <span className="text-gray-400 text-sm">読み込み中...</span>}
+          {loadingMore && <Spinner />}
           {!loading && !loadingMore && !hasMore && media.length > 0 && (
             <span className="text-gray-600 text-sm">すべて表示しました</span>
           )}
+        </div>
         </div>
       </div>
 

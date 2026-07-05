@@ -2,8 +2,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { fetchCreators, toggleFavoriteCreator, Creator } from "@/lib/api";
-import { Heart, Film, Image as ImageIcon, Search, ArrowLeft, LayoutGrid } from "lucide-react";
+import { Film, Image as ImageIcon, Search, ArrowLeft, LayoutGrid, Users } from "lucide-react";
 import CreatorDetailPanel from "@/components/CreatorDetailPanel";
+import { SkeletonGrid, EmptyState, FavoriteButton, Spinner } from "@/components/ui";
 
 const PAGE_SIZE = 30;
 
@@ -97,24 +98,30 @@ export default function CreatorsPage() {
       />
     )}
     <div className="max-w-6xl mx-auto px-4">
-      <div className="sticky top-0 z-10 bg-gray-950 pt-6 pb-3">
-        <div className="flex items-center gap-4 mb-4">
-          <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
-          <h1 className="text-2xl font-bold">投稿者一覧</h1>
+      <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-sm pt-6 pb-3 border-b border-gray-800/80 -mx-4 px-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Link
+            href="/"
+            className="text-gray-400 hover:text-white hover:bg-gray-800 p-2 -ml-2 rounded-lg transition"
+            aria-label="ホームに戻る"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+          <h1 className="text-xl sm:text-2xl font-bold">投稿者一覧</h1>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <div className="relative">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative flex-1 min-w-[180px] sm:flex-none sm:w-64">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              className="bg-gray-800 text-white pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-800 text-white pl-9 pr-4 py-2 rounded-lg text-sm placeholder:text-gray-500 border border-transparent focus:outline-none focus:border-blue-500 transition"
               placeholder="投稿者名検索..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
           <select
-            className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm focus:outline-none"
+            className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm border border-transparent focus:outline-none focus:border-blue-500 cursor-pointer"
             value={filter}
             onChange={(e) => setFilter(e.target.value as any)}
           >
@@ -124,7 +131,7 @@ export default function CreatorsPage() {
             <option value="both">両方あり</option>
           </select>
           <select
-            className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm focus:outline-none"
+            className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm border border-transparent focus:outline-none focus:border-blue-500 cursor-pointer"
             value={sort}
             onChange={(e) => setSort(e.target.value)}
           >
@@ -140,46 +147,55 @@ export default function CreatorsPage() {
             title="サムネイル表示切替"
           >
             <LayoutGrid size={14} />
-            <span>サムネイル</span>
+            <span className="hidden sm:inline">サムネイル</span>
           </button>
         </div>
       </div>
-      <div className="pt-4">
+      <div className="pt-4 pb-8">
 
       {loading ? (
-        <p className="text-gray-400">読み込み中...</p>
+        <SkeletonGrid
+          count={15}
+          gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+          withThumbnail={showThumbnail}
+        />
       ) : creators.length === 0 ? (
-        <p className="text-gray-400">投稿者が見つかりません</p>
+        <EmptyState
+          icon={Users}
+          message="投稿者が見つかりません"
+          hint={q ? "検索条件を変更してみてください" : "管理画面からスキャンを実行してください"}
+        />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 animate-fade-in">
           {creators.map((c) => (
             <div
               key={c.id}
               onClick={() => setSelectedCreatorId(c.id)}
-              className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-700 transition relative group cursor-pointer"
+              className="bg-gray-800/80 border border-gray-700/50 rounded-xl overflow-hidden hover:border-gray-500 transition relative group cursor-pointer"
             >
               {/* サムネイル */}
               {showThumbnail && (
-                <div className="relative w-full aspect-video bg-gray-700">
+                <div className="relative w-full aspect-video bg-gray-700 overflow-hidden">
                   <img
                     src={`/api/creators/${c.id}/thumbnail`}
                     alt={c.name}
-                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
               )}
+              <FavoriteButton
+                active={c.is_favorite}
+                onClick={(e) => handleFavorite(e, c)}
+                size={14}
+                className="absolute top-1.5 right-1.5"
+              />
               <div className="p-3">
-                <button
-                  onClick={(e) => handleFavorite(e, c)}
-                  className="absolute top-2 right-2 text-gray-500 hover:text-red-400 transition"
-                >
-                  <Heart size={16} fill={c.is_favorite ? "currentColor" : "none"} className={c.is_favorite ? "text-red-400" : ""} />
-                </button>
-                <div className="font-medium truncate pr-5 text-sm">{c.name}</div>
-                <div className="text-xs text-gray-400 mt-1 flex gap-3">
-                  <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
-                  <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
+                <div className={`font-medium truncate text-sm ${showThumbnail ? "" : "pr-8"}`}>{c.name}</div>
+                <div className="text-xs text-gray-400 mt-1.5 flex items-center gap-3">
+                  <span className="flex items-center gap-1"><Film size={11} />{c.video_count}</span>
+                  <span className="flex items-center gap-1"><ImageIcon size={11} />{c.photo_count}</span>
                 </div>
                 {c.last_added_at && (
                   <div className="text-xs text-gray-500 mt-1">
@@ -193,7 +209,7 @@ export default function CreatorsPage() {
       )}
       {/* センチネル：常にDOMに存在させることでObserverが確実に監視できる */}
       <div ref={sentinelRef} className="h-10 mt-4 flex items-center justify-center">
-        {loadingMore && <span className="text-gray-400 text-sm">読み込み中...</span>}
+        {loadingMore && <Spinner />}
         {!loading && !loadingMore && !hasMore && creators.length > 0 && (
           <span className="text-gray-600 text-sm">すべて表示しました</span>
         )}
