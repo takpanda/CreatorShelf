@@ -43,18 +43,23 @@ function CreatorCard({ group, onCreatorClick }: { group: CreatorGroup; onCreator
   return (
     <div
       onClick={() => onCreatorClick?.(group.creator_id)}
-      className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-700 transition cursor-pointer"
+      className="bg-gray-800/80 border border-gray-700/50 rounded-xl overflow-hidden hover:border-gray-500 transition cursor-pointer group"
     >
-      <div className="relative aspect-video bg-gray-900 flex items-center justify-center">
+      <div className="relative aspect-video bg-gray-900 flex items-center justify-center overflow-hidden">
         {thumbSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumbSrc} alt={group.creator_name} className="w-full h-full object-cover" />
+          <img
+            src={thumbSrc}
+            alt={group.creator_name}
+            loading="lazy"
+            className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+          />
         ) : (
           <div className="text-gray-600">
             {isVideo ? <Film size={32} /> : <ImageIcon size={32} />}
           </div>
         )}
-        <span className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
+        <span className="absolute bottom-1.5 right-1.5 bg-black/70 backdrop-blur-sm text-white text-xs px-1.5 py-0.5 rounded-md">
           {group.count}件
         </span>
       </div>
@@ -86,8 +91,8 @@ export default function RecentMedia({ onCreatorClick }: RecentMediaProps) {
     <>
       {videoGroups.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
-            <Film size={20} className="text-purple-400" /> 最近追加された動画
+          <h2 className="text-lg sm:text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
+            <Film size={18} className="text-purple-400" /> 最近追加された動画
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {videoGroups.slice(0, 6).map((g) => (
@@ -99,8 +104,8 @@ export default function RecentMedia({ onCreatorClick }: RecentMediaProps) {
 
       {imageGroups.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
-            <ImageIcon size={20} className="text-green-400" /> 最近追加された画像
+          <h2 className="text-lg sm:text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
+            <ImageIcon size={18} className="text-green-400" /> 最近追加された画像
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {imageGroups.slice(0, 6).map((g) => (

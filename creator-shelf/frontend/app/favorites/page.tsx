@@ -2,9 +2,10 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { fetchCreators, fetchFavoriteMedia, toggleFavoriteCreator, toggleFavoriteMedia, formatDuration, Creator, MediaItem } from "@/lib/api";
-import { ArrowLeft, Heart, Film, Image as ImageIcon, Play } from "lucide-react";
+import { ArrowLeft, Heart, Film, Image as ImageIcon, Play, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import CreatorDetailPanel from "@/components/CreatorDetailPanel";
+import { SkeletonGrid, EmptyState, FavoriteButton, Spinner } from "@/components/ui";
 
 type FavTab = "creators" | "all" | "video" | "image";
 
@@ -140,19 +141,27 @@ export default function FavoritesPage() {
           onClose={() => setSelectedCreatorId(null)}
         />
       )}
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="sticky top-0 z-10 bg-gray-950 pt-6 pb-3">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
-          <h1 className="text-2xl font-bold flex-1">お気に入り</h1>
+    <div className="max-w-6xl mx-auto px-4 pb-8">
+      <div className="sticky top-0 z-10 bg-gray-950/95 backdrop-blur-sm pt-6 pb-2 border-b border-gray-800/80 -mx-4 px-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Link
+            href="/"
+            className="text-gray-400 hover:text-white hover:bg-gray-800 p-2 -ml-2 rounded-lg transition"
+            aria-label="ホームに戻る"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+          <h1 className="text-xl sm:text-2xl font-bold flex-1">お気に入り</h1>
         </div>
 
-        <div className="flex gap-2 mb-6 border-b border-gray-700 pb-2">
+        <div className="flex gap-1.5 pb-2 overflow-x-auto scrollbar-hide">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-4 py-1.5 rounded-lg text-sm transition ${tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+              className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                tab === t.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+              }`}
             >
               {t.label}
             </button>
@@ -160,93 +169,110 @@ export default function FavoritesPage() {
         </div>
       </div>
 
+      <div className="pt-4">
       {loading ? (
-        <p className="text-gray-400">読み込み中...</p>
+        <SkeletonGrid
+          count={10}
+          gridClass={tab === "creators"
+            ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+            : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"}
+          withThumbnail={tab !== "creators"}
+        />
       ) : tab === "creators" ? (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {creators.length === 0 && <p className="text-gray-400 col-span-full">お気に入り投稿者がいません</p>}
-            {creators.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => setSelectedCreatorId(c.id)}
-                className="bg-gray-800 rounded-xl p-4 hover:bg-gray-700 transition relative cursor-pointer"
-              >
-                <button onClick={(e) => { e.stopPropagation(); handleCreatorFav(c); }} className="absolute top-2 right-2 text-red-400 hover:text-gray-400 transition">
-                  <Heart size={16} fill="currentColor" />
-                </button>
-                <div className="font-medium truncate pr-5">{c.name}</div>
-                <div className="text-xs text-gray-400 mt-2 flex gap-3">
-                  <span><Film size={11} className="inline mr-1" />{c.video_count}</span>
-                  <span><ImageIcon size={11} className="inline mr-1" />{c.photo_count}</span>
+          {creators.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              message="お気に入り投稿者がいません"
+              hint="投稿者カードのハートから登録できます"
+            />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 animate-fade-in">
+              {creators.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedCreatorId(c.id)}
+                  className="bg-gray-800/80 border border-gray-700/50 rounded-xl p-4 hover:bg-gray-700/80 hover:border-gray-600 transition relative cursor-pointer"
+                >
+                  <FavoriteButton
+                    active={c.is_favorite}
+                    onClick={(e) => { e.stopPropagation(); handleCreatorFav(c); }}
+                    size={14}
+                    className="absolute top-1.5 right-1.5"
+                  />
+                  <div className="font-medium truncate pr-8">{c.name}</div>
+                  <div className="text-xs text-gray-400 mt-2 flex items-center gap-3">
+                    <span className="flex items-center gap-1"><Film size={11} />{c.video_count}</span>
+                    <span className="flex items-center gap-1"><ImageIcon size={11} />{c.photo_count}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          {loadingMore && (
-            <div className="text-center py-6 text-gray-400">
-              <svg className="animate-spin h-6 w-6 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span className="text-sm mt-2 block">読み込み中...</span>
+              ))}
             </div>
           )}
+          {loadingMore && <Spinner />}
           <div ref={sentinelRef} className="h-4" />
         </>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {media.length === 0 && <p className="text-gray-400 col-span-full">お気に入りメディアがありません</p>}
-            {media.map((m) => (
-              <div
-                key={m.id}
-                className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition relative group"
-                onClick={() => m.media_type === "video" ? router.push(`/video/${m.id}?creator=${m.creator_id}`) : router.push(`/photo/${m.id}?creator=${m.creator_id}`)}
-              >
-                <div className="relative">
-                  {m.thumbnail_path ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.media_type === "image" ? `/api/photos/${m.id}/thumbnail` : `/api/videos/${m.id}/thumbnail`} alt={m.file_name} className="w-full aspect-video object-cover" />
-                  ) : (
-                    <div className="w-full aspect-video bg-gray-700 flex items-center justify-center">
-                      {m.media_type === "video" ? <Film size={28} className="text-gray-500" /> : <ImageIcon size={28} className="text-gray-500" />}
-                    </div>
-                  )}
-                  {m.media_type === "video" && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                      <div className="bg-black/60 rounded-full p-2">
-                        <Play size={18} fill="white" className="text-white" />
+          {media.length === 0 ? (
+            <EmptyState
+              icon={Heart}
+              message="お気に入りメディアがありません"
+              hint="メディアカードのハートから登録できます"
+            />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-fade-in">
+              {media.map((m) => (
+                <div
+                  key={m.id}
+                  className="bg-gray-800/80 border border-gray-700/50 rounded-xl overflow-hidden cursor-pointer hover:border-blue-500 transition relative group"
+                  onClick={() => m.media_type === "video" ? router.push(`/video/${m.id}?creator=${m.creator_id}`) : router.push(`/photo/${m.id}?creator=${m.creator_id}`)}
+                >
+                  <div className="relative overflow-hidden">
+                    {m.thumbnail_path ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.media_type === "image" ? `/api/photos/${m.id}/thumbnail` : `/api/videos/${m.id}/thumbnail`}
+                        alt={m.file_name}
+                        loading="lazy"
+                        className="w-full aspect-video object-cover transition duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-full aspect-video bg-gray-700 flex items-center justify-center">
+                        {m.media_type === "video" ? <Film size={28} className="text-gray-500" /> : <ImageIcon size={28} className="text-gray-500" />}
                       </div>
-                    </div>
-                  )}
-                  {m.media_type === "video" && formatDuration(m.duration) && (
-                    <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
-                      {formatDuration(m.duration)}
-                    </div>
-                  )}
+                    )}
+                    {m.media_type === "video" && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/20">
+                        <div className="bg-black/60 backdrop-blur-sm rounded-full p-2">
+                          <Play size={18} fill="white" className="text-white" />
+                        </div>
+                      </div>
+                    )}
+                    {m.media_type === "video" && formatDuration(m.duration) && (
+                      <div className="absolute bottom-1.5 right-1.5 bg-black/70 backdrop-blur-sm text-white text-xs px-1.5 py-0.5 rounded-md">
+                        {formatDuration(m.duration)}
+                      </div>
+                    )}
+                  </div>
+                  <FavoriteButton
+                    active={m.is_favorite}
+                    onClick={(e) => handleMediaFav(e, m)}
+                    size={14}
+                    className="absolute top-1 right-1"
+                  />
+                  <div className="p-2">
+                    <div className="text-xs text-gray-400 truncate">{m.file_name}</div>
+                  </div>
                 </div>
-                <button onClick={(e) => handleMediaFav(e, m)} className="absolute top-1.5 right-1.5 text-red-400 hover:text-gray-400 transition">
-                  <Heart size={14} fill="currentColor" />
-                </button>
-                <div className="p-2">
-                  <div className="text-xs text-gray-300 truncate">{m.file_name}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          {loadingMore && (
-            <div className="text-center py-6 text-gray-400">
-              <svg className="animate-spin h-6 w-6 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span className="text-sm mt-2 block">読み込み中...</span>
+              ))}
             </div>
           )}
+          {loadingMore && <Spinner />}
           <div ref={sentinelRef} className="h-4" />
         </>
       )}
+      </div>
     </div>
     </>
   );
